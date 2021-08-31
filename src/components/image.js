@@ -19,14 +19,17 @@ const Image = () => (
       query {
         placeholderImage: file(relativePath: { eq: "gatsby-astronaut.png" }) {
           childImageSharp {
-            fluid(maxWidth: 300) {
-              ...GatsbyImageSharpFluid
-            }
+            gatsbyImageData(layout: FIXED)
           }
         }
       }
     `}
-    render={data => <GatsbyImage image={data.placeholderImage.childImageSharp} alt="Placeholder Image" />}
+    render={(data) => (
+      <GatsbyImage
+        image={data.placeholderImage.childImageSharp}
+        alt="Placeholder Image"
+      />
+    )}
   />
 )
 export default Image
