@@ -122,7 +122,7 @@ exports.createPages = async ({ graphql, actions: { createPage } }) => {
 
   conceptSchemes.errors && console.error(conceptSchemes.errors)
 
-  conceptSchemes.data.allConceptScheme.edges.forEach(async ({ node: conceptScheme }) => {
+  await Promise.all(conceptSchemes.data.allConceptScheme.edges.map(async ({ node: conceptScheme }) => {
     const index = flexsearch.create()
 
     const conceptsInScheme = await graphql(queries.allConcept(conceptScheme.id, languages))
@@ -151,16 +151,19 @@ exports.createPages = async ({ graphql, actions: { createPage } }) => {
         embeddedConcepts.push({ json, jsonld, jsonas })
       } else {
         // create pages and data
-        languages.forEach(language => createPage({
-          path: getFilePath(concept.id, `${language}.html`),
-          component: path.resolve(`./src/components/Concept.js`),
-          context: {
-            language,
-            languages: Array.from(languages),
-            node: concept,
-            baseURL: process.env.BASEURL || ''
-          }
-        }))
+        languages.forEach(language => {
+          createPage({
+            path: getFilePath(concept.id, `${language}.html`),
+            component: path.resolve(`./src/components/Concept.js`),
+            context: {
+              language,
+              languages: Array.from(languages),
+              node: concept,
+              baseURL: process.env.BASEURL || ''
+            }
+          })
+        })
+        
         createData({
           path: getFilePath(concept.id, 'json'),
           data: JSON.stringify(json, null, 2)
@@ -202,7 +205,7 @@ exports.createPages = async ({ graphql, actions: { createPage } }) => {
       path: getFilePath(conceptScheme.id, 'index'),
       data: JSON.stringify(index.export(), null, 2)
     })
-  })
+  }))
 
   // Build index pages
   languages.forEach(language => createPage({
@@ -219,3 +222,14 @@ exports.createPages = async ({ graphql, actions: { createPage } }) => {
 
 const createData = ({path, data}) =>
   fs.outputFile(`public${path}`, data, err => err && console.error(err))
+
+// Crypto is now a built-in module (see https://stackoverflow.com/a/67335037/8896235)
+exports.onCreateWebpackConfig = ({ actions }) => {
+  actions.setWebpackConfig({
+    resolve: {
+      fallback: {
+        crypto: false,
+      },
+    },
+  })
+}

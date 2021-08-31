@@ -1,11 +1,10 @@
-
 const Koa = require('koa')
 const Router = require('koa-router')
 const bodyParser = require('koa-bodyparser')
-const uuidv4 = require('uuid/v4')
+const { v4: uuidv4 } = require('uuid')
 const fs = require('fs-extra')
 const exec = require('child_process').exec
-const fetch = require("node-fetch")
+const fetch = require('node-fetch')
 
 const {
   getHookGitHub,
@@ -26,7 +25,6 @@ const webhooks = []
 let processingWebhooks = false
 
 const getFile = async (file, repository) => {
-
   if (!file || !repository) {
     throw new Error('Missing parameters for getFile')
   }
@@ -36,7 +34,7 @@ const getFile = async (file, repository) => {
     const data = await response.text()
     const path = `data/${repository}/`
     await fs.outputFile(`${path}${file.path}`, data)
-    console.info("Created file:".green, file.path)
+    console.info('Created file:'.green, file.path)
   } catch (error) {
     console.error(error)
   }
@@ -77,11 +75,11 @@ router.post('/build', async (ctx) => {
       repository,
       headers,
       date: new Date().toISOString(),
-      status: "processing",
+      status: 'processing',
       log: [],
       type,
       filesURL,
-      ref
+      ref,
     })
     ctx.status = 202
     ctx.body = `Build triggered: ${BUILD_URL}?id=${id}`
@@ -109,7 +107,7 @@ const processWebhooks = async () => {
         // Fetch each one of the repository files
         // eslint-disable-next-line no-unused-vars
         for (const file of files) {
-          await getFile({url: file.url, path: file.path}, webhook.repository)
+          await getFile({ url: file.url, path: file.path }, webhook.repository)
         }
       } catch (error) {
         // If there is an error fetching the files,
@@ -118,10 +116,13 @@ const processWebhooks = async () => {
         webhook.log.push({
           date: new Date(),
           text: error.message,
-          warning: true
+          warning: true,
         })
-        webhook.status = "error"
-        fs.writeFile(`${__dirname}/../dist/build/${webhook.id}.json`, JSON.stringify(webhook))
+        webhook.status = 'error'
+        fs.writeFile(
+          `${__dirname}/../dist/build/${webhook.id}.json`,
+          JSON.stringify(webhook)
+        )
         processingWebhooks = false
         return
       }
@@ -133,14 +134,20 @@ const processWebhooks = async () => {
         repositoryURL = `GATSBY_RESPOSITORY_URL=https://gitlab.com/${webhook.repository}`
       }
 
-      const build = exec(`BASEURL=/${webhook.repository}/${ref} ${repositoryURL} CI=true npm run build`, {encoding: "UTF-8"})
+      const build = exec(
+        `BASEURL=/${webhook.repository}/${ref} ${repositoryURL} CI=true npm run build`,
+        { encoding: 'UTF-8' }
+      )
       build.stdout.on('data', (data) => {
         console.log('gatsbyLog: ' + data.toString())
         webhook.log.push({
           date: new Date(),
-          text: data.toString()
+          text: data.toString(),
         })
-        fs.writeFile(`${__dirname}/../dist/build/${webhook.id}.json`, JSON.stringify(webhook))
+        fs.writeFile(
+          `${__dirname}/../dist/build/${webhook.id}.json`,
+          JSON.stringify(webhook)
+        )
       })
       build.stderr.on('data', (data) => {
         console.log('gatsbyError: ' + data.toString())
@@ -152,39 +159,49 @@ const processWebhooks = async () => {
           webhook.log.push({
             date: new Date(),
             text: data.toString(),
-            warning: true
+            warning: true,
           })
-          webhook.status = "error"
-          fs.writeFile(`${__dirname}/../dist/build/${webhook.id}.json`, JSON.stringify(webhook))
+          webhook.status = 'error'
+          fs.writeFile(
+            `${__dirname}/../dist/build/${webhook.id}.json`,
+            JSON.stringify(webhook)
+          )
         }
       })
       build.on('exit', async () => {
-        if (webhook.status !== "error") {
-          webhook.status = "complete"
+        if (webhook.status !== 'error') {
+          webhook.status = 'complete'
           webhook.log.push({
             date: new Date(),
-            text: "Build Finish"
+            text: 'Build Finish',
           })
         }
-        fs.writeFile(`${__dirname}/../dist/build/${webhook.id}.json`, JSON.stringify(webhook))
+        fs.writeFile(
+          `${__dirname}/../dist/build/${webhook.id}.json`,
+          JSON.stringify(webhook)
+        )
         fs.readdirSync(`${__dirname}/../data/`)
-          .filter(filename  => filename !== '.gitignore')
-          .forEach(filename => fs.removeSync(`${__dirname}/../data/${filename}`))
+          .filter((filename) => filename !== '.gitignore')
+          .forEach((filename) =>
+            fs.removeSync(`${__dirname}/../data/${filename}`)
+          )
         fs.removeSync(`${__dirname}/../dist/${webhook.repository}/${ref}/`)
-        fs.moveSync(`${__dirname}/../public/`, `${__dirname}/../dist/${webhook.repository}/${ref}/`)
-        console.info("Build Finish".yellow)
+        fs.moveSync(
+          `${__dirname}/../public/`,
+          `${__dirname}/../dist/${webhook.repository}/${ref}/`
+        )
+        console.info('Build Finish'.yellow)
         processingWebhooks = false
       })
     }
   }
 }
 
-app
-  .use(bodyParser())
-  .use(router.routes())
-  .use(router.allowedMethods())
+app.use(bodyParser()).use(router.routes()).use(router.allowedMethods())
 
-const server = app.listen(PORT, () => console.info(`⚡ Listening on localhost:${PORT}`.green))
+const server = app.listen(PORT, () =>
+  console.info(`⚡ Listening on localhost:${PORT}`.green)
+)
 
 // Loop to processing requests
 setInterval(() => {
