@@ -5,8 +5,10 @@
   "version": "0.1.0",
   "author": "Kyle Mathews <mathews.kyle@gmail.com>",
   "dependencies": {
+    "@elastic/elasticsearch": "^7.15.0",
     "@emotion/core": "^10.0.22",
     "@emotion/styled": "^10.0.23",
+    "@frogcat/ttl2jsonld": "^0.0.6",
     "colors": "^1.4.0",
     "dotenv": "^8.2.0",
     "flexsearch": "^0.6.32",
@@ -59,6 +61,7 @@
   "license": "MIT",
   "scripts": {
     "build": "gatsby clean && gatsby build --prefix-paths",
+    "build-reconc": "gatsby clean && gatsby build --prefix-paths && node src/populateReconciliation.js",
     "develop": "gatsby develop",
     "format": "prettier --write src/**/*.{js,jsx}",
     "start": "npm run develop",
@@ -68,7 +71,8 @@
     "test:debug": "node --inspect-brk node_modules/.bin/jest --runInBand --verbose",
     "test:watch": "jest --watchAll --verbose",
     "test:coverage": "jest --verbose --coverage",
-    "listen": "node src/webHookServer.js"
+    "listen": "node src/webHookServer.js",
+    "populate-reconc": "node src/populateReconciliation.js"
   },
   "repository": {
     "type": "git",
