@@ -1,7 +1,9 @@
 const fs = require('fs-extra')
 const path = require('path')
-const ttl2jsonld = require('@frogcat/ttl2jsonld').parse;
+const glob = require('glob')
+const ttl2jsonld = require('@frogcat/ttl2jsonld').parse
 const elasticsearch = require('@elastic/elasticsearch')
+const esb = require('elastic-builder/src')
 const jsonld = require('jsonld')
 const context = require('./context_es')
 
@@ -9,14 +11,25 @@ const context = require('./context_es')
 //       Maybe launch a delete query to ES for the currently processed tenant/vocab first?
 
 require('dotenv').config()
-const index = process.env.ES_INDEX
+const esIndex = process.env.ES_INDEX
 
-const filepath = path.resolve(__dirname, '../data/polmat.ttl')
 const tenant = 'rg-mpg-de'
-const vocab = path.basename(filepath, path.extname(filepath))
 
-async function buildData (ttl) {
-	const doc = ttl2jsonld(ttl)
+async function collectData () {
+	var data = []
+	const files = glob.sync('data/*.ttl')
+	for (const f of files) {
+		console.log(`> Read and parse ${path.basename(f)} ...`)
+		const vocab = path.basename(f, path.extname(f))
+		const ttlString = fs.readFileSync(f).toString()
+		const entries = await buildData(ttlString, tenant, vocab)
+		data.push({ vocab: { tenant, vocab }, entries: entries })
+	}
+	return data
+};
+
+async function buildData (ttlString, tenant, vocab) {
+	const doc = ttl2jsonld(ttlString)
 	const expanded = await jsonld.expand(doc)
 	const compacted = await jsonld.compact(expanded, context.jsonld)
 
@@ -33,9 +46,8 @@ async function buildData (ttl) {
 			vocab: vocab
 		}
 		node['@context'] = context.jsonld['@context']
-		entries = entries + `{ "index" : { "_index" : "${index}" } }` + '\n'
+		entries = entries + `{ "index" : { "_index" : "${esIndex}" } }` + '\n'
 		entries = entries + JSON.stringify(node) + '\n'
-
 	})
 	return entries
 };
@@ -47,28 +59,53 @@ if (process.env.ES_USER && process.env.ES_PASS) {
 	esClient = new elasticsearch.Client({ node: `${process.env.ES_PROTO}://${process.env.ES_HOST}:${process.env.ES_PORT}` })
 }
 
-async function sendData (data) {
-	esClient.bulk({
-		index: index,
-		body: data
+async function deleteData (v) {
+	const requestBody = esb.requestBodySearch()
+		.query(esb.boolQuery()
+			.must(esb.termQuery('tenant', v.tenant))
+			.must(esb.termQuery('vocab', v.vocab))
+		)
+	return esClient.deleteByQuery({
+		index: esIndex,
+		refresh: true,
+		body: requestBody
 	})
-	.then(response => {
-		if (response.statusCode !== 200) {
-			console.log('Status != 200. Better check response:\n', response)
-		} else {
-			console.log('> Done.', response.body.items.length, 'concepts successfully sent to ES server.')
-		}
+};
 
-	})
-	.catch(error => {
-		console.error('Failed to send data to ES server', error)
+async function sendData (entries) {
+	return esClient.bulk({
+		index: esIndex,
+		body: entries
 	})
 };
 
 async function main() {
-	const ttlString = fs.readFileSync(filepath).toString()
-	await buildData(ttlString)
-	.then(data => { sendData(data) })
+	const data = await collectData()
+	data.forEach(async v => {
+		await deleteData(v.vocab)
+		.then(response => {
+			if (response.statusCode !== 200) {
+				console.log(`> Warning: Delete ${v.vocab.tenant}/${v.vocab.vocab} status != 200. Better check response:\n`, response)
+			} else {
+				console.log(`> ${v.vocab.tenant}/${v.vocab.vocab}: Successfully deleted ${response.body.deleted} documents from ES index.`)
+			}
+		})
+		.catch(error => {
+			console.error(`Failed populating ${esIndex} index of ES server with ${v.vocab.tenant}/${v.vocab.vocab}. Abort!`, error)
+		})
+
+		await sendData(v.entries)
+		.then(response => {
+			if (response.statusCode !== 200) {
+				console.log(`> Warning: SendData ${v.vocab.tenant}/${v.vocab.vocab} status != 200. Better check response:\n`, response)
+			} else {
+				console.log(`> ${v.vocab.tenant}/${v.vocab.vocab}: Successfully sent ${response.body.items.length} documents to ES index.`)
+			}
+		})
+		.catch(error => {
+			console.error(`Failed populating ${esIndex} index of ES server with ${v.vocab.tenant}/${v.vocab.vocab}. Abort!`, error)
+		})
+	})
 }
 
 main();
