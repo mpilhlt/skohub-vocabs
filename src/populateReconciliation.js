@@ -7,9 +7,6 @@ const esb = require('elastic-builder/src')
 const jsonld = require('jsonld')
 const context = require('./context_es')
 
-// TODO: Don't add redundant concepts.
-//       Maybe launch a delete query to ES for the currently processed tenant/vocab first?
-
 require('dotenv').config()
 const esIndex = process.env.ES_INDEX
 
