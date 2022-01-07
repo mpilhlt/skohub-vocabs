@@ -17,15 +17,15 @@ async function collectData () {
 	const files = glob.sync('data/*.ttl')
 	for (const f of files) {
 		console.log(`> Read and parse ${path.basename(f)} ...`)
-		const vocab = path.basename(f, path.extname(f))
+		const vocab = path.basename(f, path.extname(f)).replace(/ /g,"_")
 		const ttlString = fs.readFileSync(f).toString()
-		const entries = await buildData(ttlString, tenant, vocab)
+		const entries = await buildJSON(ttlString, tenant, vocab)
 		data.push({ vocab: { tenant, vocab }, entries: entries })
 	}
 	return data
 };
 
-async function buildData (ttlString, tenant, vocab) {
+async function buildJSON (ttlString, tenant, vocab) {
 	const doc = ttl2jsonld(ttlString)
 	const expanded = await jsonld.expand(doc)
 	const compacted = await jsonld.compact(expanded, context.jsonld)
