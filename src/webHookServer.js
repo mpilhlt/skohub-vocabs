@@ -175,6 +175,51 @@ const processWebhooks = async () => {
         console.info("Build Finish".yellow)
         processingWebhooks = false
       })
+
+      // TODO: Just do this if reconciliation is requested...
+      const populateReconc = exec(`BASEURL=/${webhook.repository}/${ref} ${repositoryURL} CI=true node src/populateReconciliation.js`, {encoding: "UTF-8"})
+      build.stdout.on('data', (data) => {
+        console.log('gatsbyLog: ' + data.toString())
+        webhook.log.push({
+          date: new Date(),
+          text: data.toString()
+        })
+        fs.writeFile(`${__dirname}/../dist/build/${webhook.id}.json`, JSON.stringify(webhook))
+      })
+      build.stderr.on('data', (data) => {
+        console.log('gatsbyError: ' + data.toString())
+        if (
+          !data.toString().includes('Deprecation') &&
+          !data.toString().includes('warning') &&
+          !data.toString().includes('lscpu')
+        ) {
+          webhook.log.push({
+            date: new Date(),
+            text: data.toString(),
+            warning: true
+          })
+          webhook.status = "error"
+          fs.writeFile(`${__dirname}/../dist/build/${webhook.id}.json`, JSON.stringify(webhook))
+        }
+      })
+      build.on('exit', async () => {
+        if (webhook.status !== "error") {
+          webhook.status = "complete"
+          webhook.log.push({
+            date: new Date(),
+            text: "Build Finish"
+          })
+        }
+        fs.writeFile(`${__dirname}/../dist/build/${webhook.id}.json`, JSON.stringify(webhook))
+        fs.readdirSync(`${__dirname}/../data/`)
+          .filter(filename  => filename !== '.gitignore')
+          .forEach(filename => fs.removeSync(`${__dirname}/../data/${filename}`))
+        fs.removeSync(`${__dirname}/../dist/${webhook.repository}/${ref}/`)
+        fs.moveSync(`${__dirname}/../public/`, `${__dirname}/../dist/${webhook.repository}/${ref}/`)
+        console.info("Build Finish".yellow)
+        processingWebhooks = false
+      })
+
     }
   }
 }
