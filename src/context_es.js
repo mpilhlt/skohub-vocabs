@@ -19,6 +19,9 @@ const jsonld = {
 	  "preferredNamespaceUri": "vann:preferredNamespaceUri",
 	  "isBasedOn": "schema:isBasedOn",
 	  "source": "dct:source",
+	  "hasTopConcept": { "@container": "@set" },
+	  "topConceptOf": { "@container": "@set" },
+	  "inScheme": { "@container": "@set" },
 	  "prefLabel": { "@container": "@language" },
 	  "altLabel": { "@container": ["@language", "@set"] },
 	  "definition": { "@container": "@language" },
@@ -34,8 +37,7 @@ const jsonld = {
 	  "broadMatch": { "@container": "@set" },
 	  "narrowMatch": { "@container": "@set" },
 	  "closeMatch": { "@container": "@set" },
-	  "exactMatch": { "@container": "@set" },
-	  "hasTopConcept": { "@container": "@set" }
+	  "exactMatch": { "@container": "@set" }
 	}
 }
 

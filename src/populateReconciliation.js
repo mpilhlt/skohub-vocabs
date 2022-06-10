@@ -10,22 +10,22 @@ const context = require('./context_es')
 require('dotenv').config()
 const esIndex = process.env.ES_INDEX
 
-const tenant = 'rg-mpg-de'
 
 async function collectData () {
 	var data = []
 	const files = glob.sync('data/*.ttl')
 	for (const f of files) {
 		console.log(`> Read and parse ${path.basename(f)} ...`)
-		const vocab = path.basename(f, path.extname(f)).replace(/ /g,"_")
 		const ttlString = fs.readFileSync(f).toString()
-		const entries = await buildJSON(ttlString, tenant, vocab)
-		data.push({ vocab: { tenant, vocab }, entries: entries })
+		const entries = await buildJSON(ttlString)
+		console.log(entries)
+		const url = JSON.parse(entries).find( o => o.inScheme !== "").inScheme
+		data.push({ vocab: url, entries: entries })
 	}
 	return data
 };
 
-async function buildJSON (ttlString, tenant, vocab) {
+async function buildJSON (ttlString) {
 	const doc = ttl2jsonld(ttlString)
 	const expanded = await jsonld.expand(doc)
 	const compacted = await jsonld.compact(expanded, context.jsonld)
@@ -38,12 +38,10 @@ async function buildJSON (ttlString, tenant, vocab) {
 			: properties.type
 		const node = {
 			...properties,
-			type,
-			tenant: tenant,
-			vocab: vocab
+			type
 		}
 		node['@context'] = context.jsonld['@context']
-		entries = entries + `{ "index" : { "_index" : "${esIndex}" } }` + '\n'
+		entries = `${entries}{ "index" : { "_index" : "${esIndex}" } }\n`
 		entries = entries + JSON.stringify(node) + '\n'
 	})
 	return entries
@@ -59,8 +57,13 @@ if (process.env.ES_USER && process.env.ES_PASS) {
 async function deleteData (v) {
 	const requestBody = esb.requestBodySearch()
 		.query(esb.boolQuery()
-			.must(esb.termQuery('tenant', v.tenant))
-			.must(esb.termQuery('vocab', v.vocab))
+			.should([ esb.termQuery('inScheme.id', v),
+					  esb.termQuery('inScheme.id', 'http://' + v),
+					  esb.termQuery('inScheme.id', 'https://' + v),
+					  esb.termQuery('id', v),
+					  esb.termQuery('id', 'http://' + v),
+					  esb.termQuery('id', 'https://' + v)
+			])
 		)
 	return esClient.deleteByQuery({
 		index: esIndex,
@@ -79,28 +82,28 @@ async function sendData (entries) {
 async function main() {
 	const data = await collectData()
 	data.forEach(async v => {
-		await deleteData(v.vocab)
+		await deleteData(v.url)
 		.then(response => {
 			if (response.statusCode !== 200) {
-				console.log(`> Warning: Delete ${v.vocab.tenant}/${v.vocab.vocab} status != 200. Better check response:\n`, response)
+				console.log(`> Warning: Delete ${v.url} status != 200. Better check response:\n`, response)
 			} else {
-				console.log(`> ${v.vocab.tenant}/${v.vocab.vocab}: Successfully deleted ${response.body.deleted} documents from ES index.`)
+				console.log(`> ${v.url}: Successfully deleted ${response.body.deleted} documents from ES index.`)
 			}
 		})
 		.catch(error => {
-			console.error(`Failed populating ${esIndex} index of ES server with ${v.vocab.tenant}/${v.vocab.vocab}. Abort!`, error)
+			console.error(`Failed populating ${esIndex} index of ES server when trying to delete ${v.url}. Abort!`, error)
 		})
 
 		await sendData(v.entries)
 		.then(response => {
 			if (response.statusCode !== 200) {
-				console.log(`> Warning: SendData ${v.vocab.tenant}/${v.vocab.vocab} status != 200. Better check response:\n`, response)
+				console.log(`> Warning: SendData ${v.url} status != 200. Better check response:\n`, response)
 			} else {
-				console.log(`> ${v.vocab.tenant}/${v.vocab.vocab}: Successfully sent ${response.body.items.length} documents to ES index.`)
+				console.log(`> ${v.url}: Successfully sent ${response.body.items.length} documents to ES index.`)
 			}
 		})
 		.catch(error => {
-			console.error(`Failed populating ${esIndex} index of ES server with ${v.vocab.tenant}/${v.vocab.vocab}. Abort!`, error)
+			console.error(`Failed populating ${esIndex} index of ES server with ${v.url}. Abort!`, error)
 		})
 	})
 }

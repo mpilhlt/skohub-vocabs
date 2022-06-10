@@ -36,6 +36,18 @@ const jsonld = {
     "preferredNamespaceUri": "vann:preferredNamespaceUri",
     "isBasedOn": "schema:isBasedOn",
     "source": "dct:source",
+    "inScheme": {
+      "@container": "@set"
+    },
+    "topConceptOf": {
+      "@container": "@set"
+    },
+    "hasTopConcept": {
+      "@container": "@set"
+    },
+    "notation": {
+      "@container": "@set"
+    },
     "prefLabel": {
       "@container": "@language"
     },
@@ -50,9 +62,6 @@ const jsonld = {
     },
     "note": {
       "@container": "@language"
-    },
-    "notation": {
-      "@container": "@set"
     },
     "example": {
       "@container": "@language"
@@ -85,10 +94,7 @@ const jsonld = {
       "@container": "@set"
     },
     "followers": "as:followers",
-    "inbox": "ldp:inbox",
-    "hasTopConcept": {
-      "@container": "@set"
-    }
+    "inbox": "ldp:inbox"
   }
 }
 
