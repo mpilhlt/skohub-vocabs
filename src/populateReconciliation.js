@@ -17,10 +17,10 @@ async function collectData () {
 	for (const f of files) {
 		console.log(`> Read and parse ${path.basename(f)} ...`)
 		const ttlString = fs.readFileSync(f).toString()
-		const entries = await buildJSON(ttlString)
-		console.log(entries)
-		const url = JSON.parse(entries).find( o => o.inScheme !== "").inScheme
-		data.push({ vocab: url, entries: entries })
+		const j = await buildJSON(ttlString)
+		// console.log(j.entries)
+		// console.log("URL is this:", j.url)
+		data.push({ url: j.url, entries: j.entries })
 	}
 	return data
 };
@@ -31,7 +31,8 @@ async function buildJSON (ttlString) {
 	const compacted = await jsonld.compact(expanded, context.jsonld)
 
 	var entries = ''
-	compacted['@graph'].forEach((graph, i) => {
+	var url = ''
+	compacted['@graph'].forEach((graph, _) => {
 		const { ...properties } = graph
 		const type = Array.isArray(properties.type)
 			? properties.type.find(t => ['Concept', 'ConceptScheme'])
@@ -41,10 +42,16 @@ async function buildJSON (ttlString) {
 			type
 		}
 		node['@context'] = context.jsonld['@context']
+		if (!(url.length > 0)) {
+			if (node.type === 'ConceptScheme') {
+				url = node.preferredNamespaceUri
+			}
+		}
+
 		entries = `${entries}{ "index" : { "_index" : "${esIndex}" } }\n`
 		entries = entries + JSON.stringify(node) + '\n'
 	})
-	return entries
+	return { entries: entries, url: url }
 };
 
 var esClient
