@@ -41,12 +41,13 @@ async function buildJSON (ttlString) {
 			...properties,
 			type
 		}
-		node['@context'] = context.jsonld['@context']
 		if (!(url.length > 0)) {
 			if (node.type === 'ConceptScheme') {
 				url = node.preferredNamespaceUri
 			}
 		}
+		node['vocab'] = url
+		node['@context'] = context.jsonld['@context']
 
 		entries = `${entries}{ "index" : { "_index" : "${esIndex}" } }\n`
 		entries = entries + JSON.stringify(node) + '\n'
@@ -61,16 +62,10 @@ if (process.env.ES_USER && process.env.ES_PASS) {
 	esClient = new elasticsearch.Client({ node: `${process.env.ES_PROTO}://${process.env.ES_HOST}:${process.env.ES_PORT}` })
 }
 
-async function deleteData (v) {
+async function deleteData (url) {
 	const requestBody = esb.requestBodySearch()
 		.query(esb.boolQuery()
-			.should([ esb.termQuery('inScheme.id', v),
-					  esb.termQuery('inScheme.id', 'http://' + v),
-					  esb.termQuery('inScheme.id', 'https://' + v),
-					  esb.termQuery('id', v),
-					  esb.termQuery('id', 'http://' + v),
-					  esb.termQuery('id', 'https://' + v)
-			])
+			.must([ esb.termQuery('vocab', url) ])
 		)
 	return esClient.deleteByQuery({
 		index: esIndex,
