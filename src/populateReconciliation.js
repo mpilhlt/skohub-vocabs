@@ -13,25 +13,27 @@ const esIndex = process.env.ES_INDEX
 
 async function collectData () {
 	var data = []
-	const files = glob.sync('data/*.ttl')
+	const files = glob.sync('data/**/*.ttl')
 	for (const f of files) {
-		console.log(`> Read and parse ${path.basename(f)} ...`)
+		const tenant = path.dirname(f).split(path.sep).pop();
+		console.log(`> Read and parse ${tenant}/${path.basename(f)} ...`)
 		const ttlString = fs.readFileSync(f).toString()
-		const j = await buildJSON(ttlString)
+		const j = await buildJSON(ttlString, tenant)
 		// console.log(j.entries)
 		// console.log("URL is this:", j.url)
-		data.push({ url: j.url, entries: j.entries })
+		data.push({ tenant: j.tenant, vocab: j.vocab, entries: j.entries })
 	}
 	return data
 };
 
-async function buildJSON (ttlString) {
+async function buildJSON (ttlString, tenant) {
 	const doc = ttl2jsonld(ttlString)
 	const expanded = await jsonld.expand(doc)
 	const compacted = await jsonld.compact(expanded, context.jsonld)
 
 	var entries = ''
-	var url = ''
+	var vocab = ''
+
 	compacted['@graph'].forEach((graph, _) => {
 		const { ...properties } = graph
 		const type = Array.isArray(properties.type)
@@ -41,18 +43,22 @@ async function buildJSON (ttlString) {
 			...properties,
 			type
 		}
-		if (!(url.length > 0)) {
-			if (node.type === 'ConceptScheme') {
-				url = node.preferredNamespaceUri
-			}
+		if (node.type === 'ConceptScheme') {
+			vocab = node.id.substring(0, node.id.lastIndexOf('/'))
+		} else if (node.type === 'Concept') {
+			vocab = node.inScheme[0].id.substring(0, node.inScheme[0].id.lastIndexOf('/'))
 		}
-		node['vocab'] = url
+		node['vocab'] = vocab
+		node['tenant'] = tenant
 		node['@context'] = context.jsonld['@context']
 
+		if (node.type === 'ConceptScheme') {
+			console.log(`node: ${JSON.stringify(node)}`)
+		}
 		entries = `${entries}{ "index" : { "_index" : "${esIndex}" } }\n`
 		entries = entries + JSON.stringify(node) + '\n'
 	})
-	return { entries: entries, url: url }
+	return { tenant: tenant, vocab: vocab, entries: entries }
 };
 
 var esClient
@@ -62,10 +68,12 @@ if (process.env.ES_USER && process.env.ES_PASS) {
 	esClient = new elasticsearch.Client({ node: `${process.env.ES_PROTO}://${process.env.ES_HOST}:${process.env.ES_PORT}` })
 }
 
-async function deleteData (url) {
+async function deleteData (tenant, vocab) {
 	const requestBody = esb.requestBodySearch()
 		.query(esb.boolQuery()
-			.must([ esb.termQuery('vocab', url) ])
+			.must([ ...(vocab && [esb.termQuery('vocab', vocab)]),
+					...(tenant && [esb.termQuery('tenant', tenant)])
+				])
 		)
 	return esClient.deleteByQuery({
 		index: esIndex,
@@ -84,28 +92,28 @@ async function sendData (entries) {
 async function main() {
 	const data = await collectData()
 	data.forEach(async v => {
-		await deleteData(v.url)
+		await deleteData(v.tenant, v.vocab)
 		.then(response => {
 			if (response.statusCode !== 200) {
-				console.log(`> Warning: Delete ${v.url} status != 200. Better check response:\n`, response)
+				console.log(`> Warning: Delete ${v.tenant}/${v.vocab} status != 200. Better check response:\n`, response)
 			} else {
-				console.log(`> ${v.url}: Successfully deleted ${response.body.deleted} documents from ES index.`)
+				console.log(`> ${v.tenant}/${v.vocab}: Successfully deleted ${response.body.deleted} documents from ES index.`)
 			}
 		})
 		.catch(error => {
-			console.error(`Failed populating ${esIndex} index of ES server when trying to delete ${v.url}. Abort!`, error)
+			console.error(`Failed populating ${esIndex} index of ES server when trying to delete ${v.tenant}/${v.vocab}. Abort!`, error)
 		})
 
 		await sendData(v.entries)
 		.then(response => {
 			if (response.statusCode !== 200) {
-				console.log(`> Warning: SendData ${v.url} status != 200. Better check response:\n`, response)
+				console.log(`> Warning: SendData ${v.tenant}/${v.vocab} status != 200. Better check response:\n`, response)
 			} else {
-				console.log(`> ${v.url}: Successfully sent ${response.body.items.length} documents to ES index.`)
+				console.log(`> ${v.tenant}/${v.vocab}: Successfully sent ${response.body.items.length} documents to ES index.`)
 			}
 		})
 		.catch(error => {
-			console.error(`Failed populating ${esIndex} index of ES server with ${v.url}. Abort!`, error)
+			console.error(`Failed populating ${esIndex} index of ES server with ${v.tenant}/${v.vocab}. Abort!`, error)
 		})
 	})
 }
