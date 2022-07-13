@@ -85,9 +85,10 @@ router.post('/build', async (ctx) => {
       ref,
       doReconcile
     })
+    const tasks = doReconcile ? 'Build and reconc. population' : 'Build'
     ctx.status = 202
-    ctx.body = `Build triggered: ${BUILD_URL}?id=${id}`
-    console.log('Build triggered')
+    ctx.body = `${tasks} triggered: ${BUILD_URL}?id=${id}`
+    console.log(`${tasks} triggered`)
   } else {
     ctx.status = 400
     ctx.body = 'Payload was invalid, build not triggered'
