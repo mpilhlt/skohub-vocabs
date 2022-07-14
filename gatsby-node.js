@@ -120,7 +120,7 @@ exports.onPreBootstrap = async ({createContentDigest, actions}) => {
 }
 
 exports.sourceNodes = async ({ actions }) => {
-  const { createTypes } = actions
+//  const { createTypes } = actions
   const htaccess = [
     'DirectoryIndex index',
     'AddType text/index .index',
@@ -132,6 +132,25 @@ exports.sourceNodes = async ({ actions }) => {
     path: '/.htaccess',
     data: htaccess.join("\n")
   })
+//  createTypes(types(languages))
+}
+
+
+exports.createSchemaCustomization = async ({ actions }) => {
+  const { createTypes } = actions
+/*
+  const htaccess = [
+    'DirectoryIndex index',
+    'AddType text/index .index',
+    'AddType application/json .json',
+    'AddType application/ld+json .jsonld',
+    'AddType application/activity+json .jsonas'
+  ]
+  await createData({
+    path: '/.htaccess',
+    data: htaccess.join("\n")
+  })
+*/
   createTypes(types(languages))
 }
 
