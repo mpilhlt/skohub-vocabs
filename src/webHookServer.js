@@ -226,8 +226,8 @@ const processWebhooks = async () => {
           // fs.readdirSync(`${__dirname}/../data/`)
           //  .filter(filename  => filename !== '.gitignore')
           //  .forEach(filename => fs.removeSync(`${__dirname}/../data/${filename}`))
-          fs.removeSync(`${__dirname}/../dist/${webhook.repository}/${ref}/`)
-          fs.moveSync(`${__dirname}/../public/`, `${__dirname}/../dist/${webhook.repository}/${ref}/`)
+          // fs.removeSync(`${__dirname}/../dist/${webhook.repository}/${ref}/`)
+          // fs.moveSync(`${__dirname}/../public/`, `${__dirname}/../dist/${webhook.repository}/${ref}/`)
           console.info("Populate-Reconc Finish".yellow)
           processingWebhooks = false
         })
