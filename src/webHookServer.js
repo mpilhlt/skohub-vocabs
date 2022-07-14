@@ -104,6 +104,9 @@ const processWebhooks = async () => {
       const webhook = webhooks.shift()
       const ref = webhook.ref.replace('refs/', '')
       const doReconcile = webhook.doReconcile
+      // console.info("Webhook: " + JSON.stringify(webhook))
+      console.info("doReconcile: " + doReconcile)
+
       //const owner = webhook.repository.slice(0, webhook.repository.indexOf('/'))
 
       try {
@@ -172,9 +175,11 @@ const processWebhooks = async () => {
           })
         }
         fs.writeFile(`${__dirname}/../dist/build/${webhook.id}.json`, JSON.stringify(webhook))
-        fs.readdirSync(`${__dirname}/../data/`)
-          .filter(filename  => filename !== '.gitignore')
-          .forEach(filename => fs.removeSync(`${__dirname}/../data/${filename}`))
+        if (!doReconcile) {
+          fs.readdirSync(`${__dirname}/../data/`)
+            .filter(filename  => filename !== '.gitignore')
+            .forEach(filename => fs.removeSync(`${__dirname}/../data/${filename}`))
+        }
         fs.removeSync(`${__dirname}/../dist/${webhook.repository}/${ref}/`)
         fs.moveSync(`${__dirname}/../public/`, `${__dirname}/../dist/${webhook.repository}/${ref}/`)
         console.info("Build Finish".yellow)
@@ -217,9 +222,9 @@ const processWebhooks = async () => {
             })
           }
           fs.writeFile(`${__dirname}/../dist/build/${webhook.id}_reconc.json`, JSON.stringify(webhook))
-          fs.readdirSync(`${__dirname}/../data/`)
-            .filter(filename  => filename !== '.gitignore')
-            .forEach(filename => fs.removeSync(`${__dirname}/../data/${filename}`))
+          // fs.readdirSync(`${__dirname}/../data/`)
+          //  .filter(filename  => filename !== '.gitignore')
+          //  .forEach(filename => fs.removeSync(`${__dirname}/../data/${filename}`))
           fs.removeSync(`${__dirname}/../dist/${webhook.repository}/${ref}/`)
           fs.moveSync(`${__dirname}/../public/`, `${__dirname}/../dist/${webhook.repository}/${ref}/`)
           console.info("Populate-Reconc Finish".yellow)
