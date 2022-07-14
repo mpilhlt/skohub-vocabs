@@ -188,6 +188,7 @@ const processWebhooks = async () => {
 
       // Just do this if reconciliation is requested...
       if (doReconcile) {
+        console.log('Running reconciliation...')
         const populateReconc = exec(`BASEURL=/${webhook.repository}/${ref} ${repositoryURL} CI=true node src/populateReconciliation.js`, {encoding: "UTF-8"})
         populateReconc.stdout.on('data', (data) => {
           console.log('reconcLog: ' + data.toString())
