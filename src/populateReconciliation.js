@@ -17,14 +17,14 @@ async function collectData () {
 	for (const f of files) {
 		const tenant = path.dirname(f).split(path.sep)[1]
 		console.log(`> Read and parse ${tenant}/${path.basename(f)} ...`)
-		if (tenant.startsWith('_')) {
-			console.log(`> Invalid data: tenant must not start with an underscore. Value: ${tenant}`)
+		if (!/[a-zA-Z0-9]/.test(tenant.slice(0,1))) {
+			console.log(`> Invalid data: tenant must start with a letter or a number. Instead, its value is: ${tenant}`)
 			continue
 		}
 		const ttlString = fs.readFileSync(f).toString()
 		const j = await buildJSON(ttlString, tenant)
-		if (j.vocab.startsWith('_')) {
-			console.log(`> Invalid data: vocab must not start with an underscore. Value: ${j.vocab}`)
+		if (!/[a-zA-Z0-9]/.test(j.vocab.slice(0,1))) {
+			console.log(`> Invalid data: vocab must start with a letter or a number. Instead, its value is: ${j.vocab}`)
 			continue
 		}
 		data.push({ tenant: j.tenant, vocab: j.vocab, entries: j.entries })
