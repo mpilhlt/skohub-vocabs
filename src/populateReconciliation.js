@@ -15,12 +15,18 @@ async function collectData () {
 	var data = []
 	const files = glob.sync('data/**/*.ttl')
 	for (const f of files) {
-		const tenant = path.dirname(f).split(path.sep).pop();
+		const tenant = path.dirname(f).split(path.sep)[1]
 		console.log(`> Read and parse ${tenant}/${path.basename(f)} ...`)
+		if (tenant.startsWith('_')) {
+			console.log(`> Invalid data: tenant must not start with an underscore. Value: ${tenant}`)
+			continue
+		}
 		const ttlString = fs.readFileSync(f).toString()
 		const j = await buildJSON(ttlString, tenant)
-		// console.log(j.entries)
-		// console.log("URL is this:", j.url)
+		if (j.vocab.startsWith('_')) {
+			console.log(`> Invalid data: vocab must not start with an underscore. Value: ${j.vocab}`)
+			continue
+		}
 		data.push({ tenant: j.tenant, vocab: j.vocab, entries: j.entries })
 	}
 	return data
@@ -52,9 +58,6 @@ async function buildJSON (ttlString, tenant) {
 		node['tenant'] = tenant
 		node['@context'] = context.jsonld['@context']
 
-		if (node.type === 'ConceptScheme') {
-			console.log(`node: ${JSON.stringify(node)}`)
-		}
 		entries = `${entries}{ "index" : { "_index" : "${esIndex}" } }\n`
 		entries = entries + JSON.stringify(node) + '\n'
 	})
