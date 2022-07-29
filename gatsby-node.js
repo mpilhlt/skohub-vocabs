@@ -16,6 +16,7 @@ const { i18n, getPath, getFilePath } = require('./src/common')
 const context = require('./src/context')
 const queries = require('./src/queries')
 const types = require('./src/types')
+const { isArray } = require('lodash')
 
 require('dotenv').config()
 require('graceful-fs').gracefulify(require('fs'))
@@ -32,7 +33,9 @@ jsonld.registerRDFParser('text/turtle', ttlString => {
   const store = new n3.Store()
   store.addQuads(quads)
   quads.forEach(quad => {
-    quad.object.language && languages.add(quad.object.language.replace("-", "_"))
+    if (quad.object.language) {
+      languages.add(quad.object.language.replace("-", "_"))
+    }
     inverses[quad.predicate.id] && store.addQuad(
       quad.object,
       namedNode(inverses[quad.predicate.id]),
@@ -81,12 +84,13 @@ exports.onPreBootstrap = async ({createContentDigest, actions}) => {
       const type = Array.isArray(properties.type)
         ? properties.type.find(t => ['Concept', 'ConceptScheme'])
         : properties.type
+      // FIXME: Presently, only the first of the entries of inScheme is considered. Should it accommodate multiple schemes?
       const node = {
         ...properties,
         type,
         children: (narrower || hasTopConcept || []).map(narrower => narrower.id),
         parent: (broader && broader.id) || null,
-        inScheme___NODE: (inScheme && inScheme.id) || (topConceptOf && topConceptOf.id) || null,
+        inScheme___NODE: inScheme ? ( isArray(inScheme) ? inScheme[0].id : inScheme.id ) : (topConceptOf && topConceptOf.id) || null,
         topConceptOf___NODE: (topConceptOf && topConceptOf.id) || null,
         narrower___NODE: (narrower || []).map(narrower => narrower.id),
         narrowerTransitive___NODE: (narrowerTransitive || []).map(narrowerTransitive => narrowerTransitive.id),
@@ -107,10 +111,10 @@ exports.onPreBootstrap = async ({createContentDigest, actions}) => {
       if (type === 'Concept') {
         Object.assign(node, {
           followers: followersUrlTemplate.expand({
-            id: `${process.env.BASEURL || ''}/${getPath(node.id)}`.substr(1)
+            id: `${process.env.BASEURL || ''}/${getPath(node.id)}`.substring(1)
           }),
           inbox: inboxUrlTemplate.expand({
-            id: `${process.env.BASEURL || ''}/${getPath(node.id)}`.substr(1)
+            id: `${process.env.BASEURL || ''}/${getPath(node.id)}`.substring(1)
           })
         })
       }
@@ -119,18 +123,22 @@ exports.onPreBootstrap = async ({createContentDigest, actions}) => {
   })
 }
 
+// FIXME: Why is this called four times in npm run build, with only the first time having languages?
+// The other three times, languages is undefined. In npm run develop, it is called only once (correctly).
 exports.createSchemaCustomization = async ({ actions }) => {
   const { createTypes } = actions
-  createTypes(types(languages))
+  console.log('>>> languages in createSchemaCustomization:')
+  console.log(languages);
+  if (languages.size > 0) { createTypes(types(languages)) }
 }
 
 exports.createPages = async ({ graphql, actions: { createPage } }) => {
   const actorUrlTemplate = urlTemplate.parse(process.env.ACTOR)
   const conceptSchemes = await graphql(queries.allConceptScheme(languages))
-
   conceptSchemes.errors && console.error(conceptSchemes.errors)
 
   await Promise.all(conceptSchemes.data.allConceptScheme.edges.map(async ({ node: conceptScheme }) => {
+    // Define an index for this conceptScheme in this language
     const indexes = Object.fromEntries([...languages].map(l => {
       const index = flexsearch.create({
         tokenize: "full",
@@ -140,10 +148,12 @@ exports.createPages = async ({ graphql, actions: { createPage } }) => {
 
     const conceptsInScheme = await graphql(queries.allConcept(conceptScheme.id, languages))
     const embeddedConcepts = []
+
+    // Create Concept pages and data files
     conceptsInScheme.data.allConcept.edges.forEach(({ node: concept }) => {
       const json = omitEmpty(Object.assign({}, concept, context.jsonld))
       const jsonld = omitEmpty(Object.assign({}, concept, context.jsonld))
-      const actorPath = `${process.env.BASEURL || ''}/${getPath(concept.id)}`.substr(1)
+      const actorPath = `${process.env.BASEURL || ''}/${getPath(concept.id)}`.substring(1)
       const actor = actorUrlTemplate.expand({ path: actorPath })
       const jsonas = Object.assign(omitEmpty({
         id: actor,
@@ -163,17 +173,19 @@ exports.createPages = async ({ graphql, actions: { createPage } }) => {
         // embed concepts in concept scheme
         embeddedConcepts.push({ json, jsonld, jsonas })
       } else {
-        // create pages and data
-        languages.forEach(language => createPage({
-          path: getFilePath(concept.id, `${language}.html`),
-          component: path.resolve(`./src/components/Concept.js`),
-          context: {
-            language,
-            languages: Array.from(languages),
-            node: concept,
-            baseURL: process.env.BASEURL || ''
-          }
-        }))
+        // create concept pages and data
+        languages.forEach(language => {
+          createPage({
+            path: getFilePath(concept.id, `${language}.html`),
+            component: path.resolve(`./src/components/Concept.js`),
+            context: {
+              language,
+              languages: Array.from(languages),
+              node: concept,
+              baseURL: process.env.BASEURL || ''
+            }
+          })
+        })
         createData({
           path: getFilePath(concept.id, 'json'),
           data: JSON.stringify(json, null, 2)
@@ -187,13 +199,17 @@ exports.createPages = async ({ graphql, actions: { createPage } }) => {
           data: JSON.stringify(jsonas, null, 2)
         })
       }
-      languages.forEach(language => indexes[language].add(concept.id, i18n(language)(concept.prefLabel)))
+      languages.forEach(language => {
+        // console.log(`Add ${i18n(language)(concept.prefLabel)} to concept ${concept.id}'s ${language} index...`)
+        indexes[language].add(concept.id, i18n(language)(concept.prefLabel))
+      })
     })
 
-    languages.forEach(l => {
-      console.log(`Built index for language "${l}"`, indexes[l].info())
+    languages.forEach(language => {
+      console.info(`Built index for conceptScheme "${conceptScheme.id}", language "${language}"`, indexes[language].info())
     })
 
+    // Create ConceptScheme pages and data files
     languages.forEach(language => createPage({
       path: getFilePath(conceptScheme.id, `${language}.html`),
       component: path.resolve(`./src/components/ConceptScheme.js`),
@@ -213,7 +229,6 @@ exports.createPages = async ({ graphql, actions: { createPage } }) => {
       path: getFilePath(conceptScheme.id, 'jsonld'),
       data: JSON.stringify(omitEmpty(Object.assign({}, conceptScheme, context.jsonld), null, 2))
     })
-    // create index files
     languages.forEach(language => createData({
       path: getFilePath(conceptScheme.id, `${language}.index`),
       data: JSON.stringify(indexes[language].export(), null, 2)
@@ -228,7 +243,7 @@ exports.createPages = async ({ graphql, actions: { createPage } }) => {
       language,
       languages: Array.from(languages),
       conceptSchemes: conceptSchemes.data.allConceptScheme.edges.map(node => node.node)
-    },
+    }
   }))
 }
 
