@@ -4,7 +4,8 @@ const Router = require('koa-router')
 const bodyParser = require('koa-bodyparser')
 const { v4: uuidv4 } = require("uuid")
 const fs = require('fs-extra')
-const exec = require('child_process').exec
+const util = require('util')
+const exec = util.promisify(require('child_process').exec)
 const fetch = require("node-fetch")
 
 const {
@@ -68,7 +69,7 @@ router.post('/build', async (ctx) => {
     return
   }
 
-  // Check if the given event is valid
+  // If the given event is valid, push webhook event to processing queue
   if (isValid(hook)) {
     const id = uuidv4()
     const { type, repository, headers, ref, filesURL } = hook
@@ -102,13 +103,10 @@ const processWebhooks = async () => {
       processingWebhooks = true
       console.log(`Processing`.green)
       const webhook = webhooks.shift()
-      const ref = webhook.ref.replace('refs/', '')
       const doReconcile = webhook.doReconcile
-      // console.info("Webhook: " + JSON.stringify(webhook))
       console.info("doReconcile: " + doReconcile)
 
-      //const owner = webhook.repository.slice(0, webhook.repository.indexOf('/'))
-
+      // Fetch files
       try {
         // Fetch urls for the repository files
         const files = await getRepositoryFiles(webhook)
@@ -134,6 +132,7 @@ const processWebhooks = async () => {
         return
       }
 
+      // Define repositoryURL
       let repositoryURL = ''
       if (webhook.type === 'github') {
         repositoryURL = `GATSBY_RESPOSITORY_URL=https://github.com/${webhook.repository}`
@@ -141,100 +140,118 @@ const processWebhooks = async () => {
         repositoryURL = `GATSBY_RESPOSITORY_URL=https://gitlab.com/${webhook.repository}`
       }
 
-      const build = exec(`BASEURL=/${webhook.repository}/${ref} ${repositoryURL} CI=true npm run build`, {encoding: "UTF-8"})
-      build.stdout.on('data', (data) => {
-        console.log('gatsbyLog: ' + data.toString())
-        webhook.log.push({
-          date: new Date(),
-          text: data.toString()
-        })
-        fs.writeFile(`${__dirname}/../dist/build/${webhook.id}.json`, JSON.stringify(webhook))
+      // Call the processing function(s)
+      // When all the processing functions are resolved...
+      Promise.all([
+        // A promise that either is resolved by the async reconcile function or - if !doReconcile - immediately
+        ( _ => { if (doReconcile) { reconcile(repositoryURL, webhook) } else { Promise.resolve() } } ),
+        build(repositoryURL, webhook)
+      ])
+      // ... then clean up downloaded and temporary files.
+      .then(_ => cleanUp(webhook))
+      .catch(error => {
+        console.error(`Error during build, populate-reconc or clean up step. Abort!`, error)
       })
-      build.stderr.on('data', (data) => {
-        console.log('gatsbyError: ' + data.toString())
-        if (
-          !data.toString().includes('Deprecation') &&
-          !data.toString().includes('warning') &&
-          !data.toString().includes('lscpu')
-        ) {
-          webhook.log.push({
-            date: new Date(),
-            text: data.toString(),
-            warning: true
-          })
-          webhook.status = "error"
-          fs.writeFile(`${__dirname}/../dist/build/${webhook.id}.json`, JSON.stringify(webhook))
-        }
-      })
-      build.on('exit', async () => {
-        if (webhook.status !== "error") {
-          webhook.status = "build complete"
-          webhook.log.push({
-            date: new Date(),
-            text: "Build Finish"
-          })
-        }
-        fs.writeFile(`${__dirname}/../dist/build/${webhook.id}.json`, JSON.stringify(webhook))
-        if (!doReconcile) {
-          fs.readdirSync(`${__dirname}/../data/`)
-            .filter(filename  => filename !== '.gitignore')
-            .forEach(filename => fs.removeSync(`${__dirname}/../data/${filename}`))
-        }
-        fs.removeSync(`${__dirname}/../dist/${webhook.repository}/${ref}/`)
-        fs.moveSync(`${__dirname}/../public/`, `${__dirname}/../dist/${webhook.repository}/${ref}/`)
-        console.info("Build Finish".yellow)
-        if (!doReconcile) { processingWebhooks = false }
-      })
-
-      // Just do this if reconciliation is requested...
-      if (doReconcile) {
-        console.log('Running reconciliation...')
-        const populateReconc = exec(`BASEURL=/${webhook.repository}/${ref} ${repositoryURL} CI=true node src/populateReconciliation.js`, {encoding: "UTF-8"})
-        populateReconc.stdout.on('data', (data) => {
-          console.log('reconcLog: ' + data.toString())
-          webhook.log.push({
-            date: new Date(),
-            text: data.toString()
-          })
-          fs.writeFile(`${__dirname}/../dist/build/${webhook.id}_reconc.json`, JSON.stringify(webhook))
-        })
-        populateReconc.stderr.on('data', (data) => {
-          console.log('reconcError: ' + data.toString())
-          if (
-            !data.toString().includes('Deprecation') &&
-            !data.toString().includes('warning') &&
-            !data.toString().includes('lscpu')
-          ) {
-            webhook.log.push({
-              date: new Date(),
-              text: data.toString(),
-              warning: true
-            })
-            webhook.status = "error"
-            fs.writeFile(`${__dirname}/../dist/build/${webhook.id}_reconc.json`, JSON.stringify(webhook))
-          }
-        })
-        populateReconc.on('exit', async () => {
-          if (webhook.status !== "error") {
-            webhook.status = "reconc population complete"
-            webhook.log.push({
-              date: new Date(),
-              text: "Populate-Reconc Finish"
-            })
-          }
-          fs.writeFile(`${__dirname}/../dist/build/${webhook.id}_reconc.json`, JSON.stringify(webhook))
-          // fs.readdirSync(`${__dirname}/../data/`)
-          //  .filter(filename  => filename !== '.gitignore')
-          //  .forEach(filename => fs.removeSync(`${__dirname}/../data/${filename}`))
-          // fs.removeSync(`${__dirname}/../dist/${webhook.repository}/${ref}/`)
-          // fs.moveSync(`${__dirname}/../public/`, `${__dirname}/../dist/${webhook.repository}/${ref}/`)
-          console.info("Populate-Reconc Finish".yellow)
-          processingWebhooks = false
-        })
-      }
-
     }
   }
+}
+
+async function reconcile(repositoryURL, webhook) {
+  console.log('Running reconciliation population...')
+  const ref = webhook.ref.replace('refs/', '')
+
+  const populateReconc = exec(`BASEURL=/${webhook.repository}/${ref} ${repositoryURL} CI=true node src/populateReconciliation.js`, {encoding: "UTF-8"})
+
+  populateReconc.child.stdout.on('data', (data) => {
+    console.log('reconcLog: ' + data.toString())
+    webhook.log.push({
+      date: new Date(),
+      text: data.toString()
+    })
+    fs.writeFile(`${__dirname}/../dist/build/${webhook.id}_reconc.json`, JSON.stringify(webhook))
+  })
+  populateReconc.child.stderr.on('data', (data) => {
+    console.log('reconcError: ' + data.toString())
+    if (
+      !data.toString().includes('Deprecation') &&
+      !data.toString().includes('warning') &&
+      !data.toString().includes('lscpu')
+    ) {
+      webhook.log.push({
+        date: new Date(),
+        text: data.toString(),
+        warning: true
+      })
+      webhook.status = "error"
+      fs.writeFile(`${__dirname}/../dist/build/${webhook.id}_reconc.json`, JSON.stringify(webhook))
+    }
+  })
+  populateReconc.child.on('exit', async () => {
+    if (webhook.status !== "error") {
+      webhook.status = "reconc population complete"
+      webhook.log.push({
+        date: new Date(),
+        text: "Populate-reconc finished"
+      })
+    }
+    fs.writeFile(`${__dirname}/../dist/build/${webhook.id}_reconc.json`, JSON.stringify(webhook))
+    console.info("Populate-reconc finished".yellow)
+  })
+}
+
+async function build(repositoryURL, webhook) {
+  console.log('Running gatsby build...')
+  const ref = webhook.ref.replace('refs/', '')
+
+  const build = exec(`BASEURL=/${webhook.repository}/${ref} ${repositoryURL} CI=true npm run build`, {encoding: "UTF-8"})
+
+  build.stdout.on('data', (data) => {
+    console.log('gatsbyLog: ' + data.toString())
+    webhook.log.push({
+      date: new Date(),
+      text: data.toString()
+    })
+    fs.writeFile(`${__dirname}/../dist/build/${webhook.id}.json`, JSON.stringify(webhook))
+  })
+  build.stderr.on('data', (data) => {
+    console.log('gatsbyError: ' + data.toString())
+    if (
+      !data.toString().includes('Deprecation') &&
+      !data.toString().includes('warning') &&
+      !data.toString().includes('lscpu')
+    ) {
+      webhook.log.push({
+        date: new Date(),
+        text: data.toString(),
+        warning: true
+      })
+      webhook.status = "error"
+      fs.writeFile(`${__dirname}/../dist/build/${webhook.id}.json`, JSON.stringify(webhook))
+    }
+  })
+  build.on('exit', async () => {
+    if (webhook.status !== "error") {
+      webhook.status = "build complete"
+      webhook.log.push({
+        date: new Date(),
+        text: "Build finished"
+      })
+    }
+    fs.writeFile(`${__dirname}/../dist/build/${webhook.id}.json`, JSON.stringify(webhook))
+    console.info("Build finished".yellow)
+    processingWebhooks = false
+  })
+}
+
+function cleanUp(webhook) {
+  console.log('Cleaning up...')
+  const ref = webhook.ref.replace('refs/', '')
+
+  fs.readdirSync(`${__dirname}/../data/`)
+    .filter(filename => filename !== '.gitignore')
+    .forEach(filename => fs.removeSync(`${__dirname}/../data/${filename}`))
+  fs.removeSync(`${__dirname}/../dist/${webhook.repository}/${ref}/`)
+  fs.moveSync(`${__dirname}/../public/`, `${__dirname}/../dist/${webhook.repository}/${ref}/`)
 }
 
 app
