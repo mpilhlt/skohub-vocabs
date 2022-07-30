@@ -145,15 +145,15 @@ const processWebhooks = async () => {
       if (files) {
         // Call the processing function(s)
         // When all the processing functions are resolved...
-        return await Promise.all([
+        const [buildresult, reconcresult] = await Promise.all([
           build(repositoryURL, webhook),
           // A promise that either is resolved by the async reconcile function or - if !doReconcile - immediately
           ( doReconcile ? reconcile(repositoryURL, webhook) : Promise.resolve() )
         ])
-        .then(_ => cleanUp(webhook)) // ... then clean up downloaded and temporary files.
         .catch(error => {
           console.error(`Error during build, populate-reconc or clean up step. Abort!`, error)
         })
+        cleanUp(webhook) // ... then clean up downloaded and temporary files.
       } else {
         console.warn("No files to process found in filesystem. Finishing...")
         cleanUp(webhook)
@@ -167,9 +167,6 @@ async function reconcile(repositoryURL, webhook) {
   const ref = webhook.ref.replace('refs/', '')
 
   const populateReconc = exec(`BASEURL=/${webhook.repository}/${ref} ${repositoryURL} CI=true node src/populateReconciliation.js`, {encoding: "UTF-8"})
-  .catch(error => {
-    console.error(`Error during populate-reconc!`, error)
-  })
 
   populateReconc.child.stdout.on('data', (data) => {
     console.log('reconcLog: ' + data.toString())
@@ -213,9 +210,6 @@ async function build(repositoryURL, webhook) {
   const ref = webhook.ref.replace('refs/', '')
 
   const build = exec(`BASEURL=/${webhook.repository}/${ref} ${repositoryURL} CI=true npm run build`, {encoding: "UTF-8"})
-  .catch(error => {
-    console.error(`Error during build!`, error)
-  })
 
   build.child.stdout.on('data', (data) => {
     console.log('gatsbyLog: ' + data.toString())
