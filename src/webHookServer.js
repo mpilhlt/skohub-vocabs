@@ -153,7 +153,7 @@ const processWebhooks = async () => {
         .catch(error => {
           console.error(`Error during build, populate-reconc or clean up step. Abort!`, error)
         })
-        cleanUp(webhook) // ... then clean up downloaded and temporary files.
+        // cleanUp(webhook) // ... then clean up downloaded and temporary files.
       } else {
         console.warn("No files to process found in filesystem. Finishing...")
         cleanUp(webhook)
