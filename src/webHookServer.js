@@ -4,6 +4,7 @@ const Router = require('koa-router')
 const bodyParser = require('koa-bodyparser')
 const { v4: uuidv4 } = require("uuid")
 const fs = require('fs-extra')
+const glob = require('glob')
 const util = require('util')
 const exec = util.promisify(require('child_process').exec)
 const fetch = require("node-fetch")
@@ -101,9 +102,9 @@ const processWebhooks = async () => {
   if (processingWebhooks === false) {
     if (webhooks.length > 0) {
       processingWebhooks = true
-      console.log(`Processing`.green)
       const webhook = webhooks.shift()
       const doReconcile = webhook.doReconcile
+      console.log(`Processing webhook from ${webhook.repository}...`.green)
       console.info("doReconcile: " + doReconcile)
 
       // Fetch files
@@ -140,18 +141,23 @@ const processWebhooks = async () => {
         repositoryURL = `GATSBY_RESPOSITORY_URL=https://gitlab.com/${webhook.repository}`
       }
 
-      // Call the processing function(s)
-      // When all the processing functions are resolved...
-      Promise.all([
-        // A promise that either is resolved by the async reconcile function or - if !doReconcile - immediately
-        ( _ => { if (doReconcile) { reconcile(repositoryURL, webhook) } else { Promise.resolve() } } ),
-        build(repositoryURL, webhook)
-      ])
-      // ... then clean up downloaded and temporary files.
-      .then(_ => cleanUp(webhook))
-      .catch(error => {
-        console.error(`Error during build, populate-reconc or clean up step. Abort!`, error)
-      })
+      const files = glob.sync('data/**/*.ttl')
+      if (files) {
+        // Call the processing function(s)
+        // When all the processing functions are resolved...
+        return await Promise.all([
+          build(repositoryURL, webhook),
+          // A promise that either is resolved by the async reconcile function or - if !doReconcile - immediately
+          ( doReconcile ? reconcile(repositoryURL, webhook) : Promise.resolve() )
+        ])
+        .then(_ => cleanUp(webhook)) // ... then clean up downloaded and temporary files.
+        .catch(error => {
+          console.error(`Error during build, populate-reconc or clean up step. Abort!`, error)
+        })
+      } else {
+        console.warn("No files to process found in filesystem. Finishing...")
+        cleanUp(webhook)
+      }
     }
   }
 }
@@ -161,6 +167,9 @@ async function reconcile(repositoryURL, webhook) {
   const ref = webhook.ref.replace('refs/', '')
 
   const populateReconc = exec(`BASEURL=/${webhook.repository}/${ref} ${repositoryURL} CI=true node src/populateReconciliation.js`, {encoding: "UTF-8"})
+  .catch(error => {
+    console.error(`Error during populate-reconc!`, error)
+  })
 
   populateReconc.child.stdout.on('data', (data) => {
     console.log('reconcLog: ' + data.toString())
@@ -204,8 +213,11 @@ async function build(repositoryURL, webhook) {
   const ref = webhook.ref.replace('refs/', '')
 
   const build = exec(`BASEURL=/${webhook.repository}/${ref} ${repositoryURL} CI=true npm run build`, {encoding: "UTF-8"})
+  .catch(error => {
+    console.error(`Error during build!`, error)
+  })
 
-  build.stdout.on('data', (data) => {
+  build.child.stdout.on('data', (data) => {
     console.log('gatsbyLog: ' + data.toString())
     webhook.log.push({
       date: new Date(),
@@ -213,7 +225,7 @@ async function build(repositoryURL, webhook) {
     })
     fs.writeFile(`${__dirname}/../dist/build/${webhook.id}.json`, JSON.stringify(webhook))
   })
-  build.stderr.on('data', (data) => {
+  build.child.stderr.on('data', (data) => {
     console.log('gatsbyError: ' + data.toString())
     if (
       !data.toString().includes('Deprecation') &&
@@ -229,7 +241,7 @@ async function build(repositoryURL, webhook) {
       fs.writeFile(`${__dirname}/../dist/build/${webhook.id}.json`, JSON.stringify(webhook))
     }
   })
-  build.on('exit', async () => {
+  build.child.on('exit', async () => {
     if (webhook.status !== "error") {
       webhook.status = "build complete"
       webhook.log.push({
@@ -251,7 +263,9 @@ function cleanUp(webhook) {
     .filter(filename => filename !== '.gitignore')
     .forEach(filename => fs.removeSync(`${__dirname}/../data/${filename}`))
   fs.removeSync(`${__dirname}/../dist/${webhook.repository}/${ref}/`)
-  fs.moveSync(`${__dirname}/../public/`, `${__dirname}/../dist/${webhook.repository}/${ref}/`)
+  if (fs.existsSync(`${__dirname}/../public/`)) {
+    fs.moveSync(`${__dirname}/../public/`, `${__dirname}/../dist/${webhook.repository}/${ref}/`)
+  }
 }
 
 app
