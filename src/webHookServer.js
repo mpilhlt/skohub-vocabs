@@ -135,6 +135,7 @@ const processWebhooks = async () => {
       }
 
       // Define repositoryURL
+      // FIXME: Waht did we need this for?
       let repositoryURL = ''
       if (webhook.type === 'github') {
         repositoryURL = `GATSBY_REPOSITORY_URL=https://github.com/${webhook.repository}`
