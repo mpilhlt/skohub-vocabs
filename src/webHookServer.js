@@ -178,7 +178,7 @@ const processWebhooks = async () => {
         // (This seems to be related to a crypto module used by checksuming functions.)
         // Problem is, this triggers the error catcher that after its logging proceeds to the cleanUp function (too early!)
         // Thus, for the time being, the cleanUp function is not used.
-        // cleanUp(webhook) // ... then clean up downloaded and temporary files.
+        cleanUp(webhook) // ... then clean up downloaded and temporary files.
       } else {
         console.warn("No files to process found in filesystem. Finishing...")
         cleanUp(webhook)
