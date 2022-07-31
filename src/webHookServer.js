@@ -187,7 +187,7 @@ async function runBuild(webhook, command, processName) {
   Object.keys(command.env).forEach( key => {process.env[key] = command.env[key]})
   return new Promise(async (resolve, reject) => {
     const process = spawn(command.cmd, command.args, { env: command.env });
-    process.on('data', (data) => {
+    process.stdout.on('data', (data) => {
       console.log(`${processName}Log: ` + data.toString())
       webhook.log.push({
         date: new Date(),
@@ -195,7 +195,7 @@ async function runBuild(webhook, command, processName) {
       })
       fs.writeFile(`${__dirname}/../dist/build/${webhook.id}.json`, JSON.stringify(webhook))
     });
-    process.on('error', (err) => {
+    process.stderr.on('data', (err) => {
       console.log(`${processName}Error: ` + err.toString())
       if (
         !err.toString().includes('Deprecation') &&
