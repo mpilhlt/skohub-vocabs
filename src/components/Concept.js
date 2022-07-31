@@ -16,8 +16,8 @@ const Concept = ({ pageContext: { node: concept, language, baseURL } }) => (
     </h1>
     <h2>{concept.id}</h2>
     <JsonLink
-      to={`${getFileName(concept.id)}.json`}
-    />
+        to={getFileName(concept.id) + '.json'}
+        />
     <p>
       <a href={concept.inbox}>Inbox</a>
     </p>
