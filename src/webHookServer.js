@@ -6,7 +6,8 @@ const { v4: uuidv4 } = require("uuid")
 const fs = require('fs-extra')
 const glob = require('glob')
 const util = require('util')
-const execSync = util.promisify(require('child_process').execSync)
+const exec = require('child_process').exec
+const spawn = require('child_process').spawn
 const fetch = require("node-fetch")
 
 const {
@@ -16,6 +17,8 @@ const {
   isValid,
   getRepositoryFiles,
 } = require('./common')
+const { resolve } = require('path')
+const { reject } = require('lodash')
 
 require('dotenv').config()
 require('colors')
@@ -143,15 +146,17 @@ const processWebhooks = async () => {
 
       const files = glob.sync('data/**/*.ttl')
       if (files) {
+        const ref = webhook.ref.replace('refs/', '')
+
         // Call the processing function(s)
         // When all the processing functions are resolved...
-        const [buildresult, reconcresult] = await Promise.all([
-          build(repositoryURL, webhook),
+        await Promise.all([
+          runBuild(repositoryURL, webhook, `BASEURL=/${webhook.repository}/${ref} ${repositoryURL} CI=true npm run build`, 'gatsby'),
           // A promise that either is resolved by the async reconcile function or - if !doReconcile - immediately
-          ( doReconcile ? reconcile(repositoryURL, webhook) : Promise.resolve() )
+          ( doReconcile ? runBuild(repositoryURL, webhook, `BASEURL=/${webhook.repository}/${ref} ${repositoryURL} CI=true node src/populateReconciliation.js`, 'reconcile') : Promise.resolve() )
         ])
         .catch(error => {
-          console.error(`Error during build, populate-reconc or clean up step. Abort!`, error)
+          console.error(`Error during build or populate-reconc step. Abort!`, error)
         })
         cleanUp(webhook) // ... then clean up downloaded and temporary files.
       } else {
@@ -162,91 +167,71 @@ const processWebhooks = async () => {
   }
 }
 
-async function reconcile(repositoryURL, webhook) {
-  console.log('Running reconciliation population...')
-  const ref = webhook.ref.replace('refs/', '')
+async function runBuild(repositoryURL, webhook, command, processName) {
+  console.log(`Running ${processName} build ...`)
 
-  const populateReconc = execSync(`BASEURL=/${webhook.repository}/${ref} ${repositoryURL} CI=true node src/populateReconciliation.js`, {encoding: "UTF-8"})
-
-  populateReconc.child.stdout.on('data', (data) => {
-    console.log('reconcLog: ' + data.toString())
-    webhook.log.push({
-      date: new Date(),
-      text: data.toString()
-    })
-    fs.writeFile(`${__dirname}/../dist/build/${webhook.id}_reconc.json`, JSON.stringify(webhook))
-  })
-  populateReconc.child.stderr.on('data', (data) => {
-    console.log('reconcError: ' + data.toString())
-    if (
-      !data.toString().includes('Deprecation') &&
-      !data.toString().includes('warning') &&
-      !data.toString().includes('lscpu')
-    ) {
+  return new Promise(async (resolve, reject) => {
+    const process = spawn(command);
+    process.on('data', (data) => {
+      console.log(`${processName}Log: ` + data.toString())
       webhook.log.push({
         date: new Date(),
-        text: data.toString(),
-        warning: true
+        text: data.toString()
       })
-      webhook.status = "error"
-      fs.writeFile(`${__dirname}/../dist/build/${webhook.id}_reconc.json`, JSON.stringify(webhook))
-    }
-  })
-  populateReconc.child.on('exit', async () => {
-    if (webhook.status !== "error") {
-      webhook.status = "reconc population complete"
-      webhook.log.push({
-        date: new Date(),
-        text: "Populate-reconc finished"
-      })
-    }
-    fs.writeFile(`${__dirname}/../dist/build/${webhook.id}_reconc.json`, JSON.stringify(webhook))
-    console.info("Populate-reconc finished".yellow)
-  })
-}
-
-async function build(repositoryURL, webhook) {
-  console.log('Running gatsby build...')
-  const ref = webhook.ref.replace('refs/', '')
-
-  const build = execSync(`BASEURL=/${webhook.repository}/${ref} ${repositoryURL} CI=true npm run build`, {encoding: "UTF-8"})
-
-  build.child.stdout.on('data', (data) => {
-    console.log('gatsbyLog: ' + data.toString())
-    webhook.log.push({
-      date: new Date(),
-      text: data.toString()
-    })
-    fs.writeFile(`${__dirname}/../dist/build/${webhook.id}.json`, JSON.stringify(webhook))
-  })
-  build.child.stderr.on('data', (data) => {
-    console.log('gatsbyError: ' + data.toString())
-    if (
-      !data.toString().includes('Deprecation') &&
-      !data.toString().includes('warning') &&
-      !data.toString().includes('lscpu')
-    ) {
-      webhook.log.push({
-        date: new Date(),
-        text: data.toString(),
-        warning: true
-      })
-      webhook.status = "error"
       fs.writeFile(`${__dirname}/../dist/build/${webhook.id}.json`, JSON.stringify(webhook))
-    }
-  })
-  build.child.on('exit', async () => {
-    if (webhook.status !== "error") {
-      webhook.status = "build complete"
-      webhook.log.push({
-        date: new Date(),
-        text: "Build finished"
-      })
-    }
-    fs.writeFile(`${__dirname}/../dist/build/${webhook.id}.json`, JSON.stringify(webhook))
-    console.info("Build finished".yellow)
-    processingWebhooks = false
-  })
+      resolve(data)
+    });
+    process.on('error', (err) => {
+      console.log(`${processName}Error: ` + err.toString())
+      if (
+        !err.toString().includes('Deprecation') &&
+        !err.toString().includes('warning') &&
+        !err.toString().includes('lscpu')
+      ) {
+        webhook.log.push({
+          date: new Date(),
+          text: err.toString(),
+          warning: true
+        })
+        webhook.status = "error"
+        fs.writeFile(`${__dirname}/../dist/build/${webhook.id}.json`, JSON.stringify(webhook))
+      }
+      reject(err)
+    });
+    process.on('close', async (code) => {
+      if ((code !== 0)) {
+        console.log(`${processName}Error: Build finished with error code ` + code.toString())
+        webhook.status = `${processName} build failed`
+        webhook.log.push({
+          date: new Date(),
+          text: `${processName} build failed`
+        })
+        fs.writeFile(`${__dirname}/../dist/build/${webhook.id}.json`, JSON.stringify(webhook))
+        console.info(`${processName} build failed`.red)
+        reject(code)
+      } else {
+        if (webhook.status !== "error") {
+          webhook.status = `${processName} build complete`
+          webhook.log.push({
+            date: new Date(),
+            text: `${processName} build finished`
+          })
+          fs.writeFile(`${__dirname}/../dist/build/${webhook.id}.json`, JSON.stringify(webhook))
+          console.info(`${processName} build finished`.green)
+          resolve(code)
+        } else {
+          webhook.status = `${processName} build failed`
+          webhook.log.push({
+            date: new Date(),
+            text: `${processName} build failed`
+          })
+          fs.writeFile(`${__dirname}/../dist/build/${webhook.id}.json`, JSON.stringify(webhook))
+          console.info(`${processName} build failed`.red)
+          reject()
+        }
+      }
+    });
+  });
 }
 
 function cleanUp(webhook) {
@@ -260,6 +245,8 @@ function cleanUp(webhook) {
   if (fs.existsSync(`${__dirname}/../public/`)) {
     fs.moveSync(`${__dirname}/../public/`, `${__dirname}/../dist/${webhook.repository}/${ref}/`)
   }
+
+  processingWebhooks = false
 }
 
 app
