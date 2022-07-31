@@ -6,7 +6,7 @@ const { v4: uuidv4 } = require("uuid")
 const fs = require('fs-extra')
 const glob = require('glob')
 const util = require('util')
-const exec = util.promisify(require('child_process').exec)
+const execSync = util.promisify(require('child_process').execSync)
 const fetch = require("node-fetch")
 
 const {
@@ -153,7 +153,7 @@ const processWebhooks = async () => {
         .catch(error => {
           console.error(`Error during build, populate-reconc or clean up step. Abort!`, error)
         })
-        // cleanUp(webhook) // ... then clean up downloaded and temporary files.
+        cleanUp(webhook) // ... then clean up downloaded and temporary files.
       } else {
         console.warn("No files to process found in filesystem. Finishing...")
         cleanUp(webhook)
@@ -166,7 +166,7 @@ async function reconcile(repositoryURL, webhook) {
   console.log('Running reconciliation population...')
   const ref = webhook.ref.replace('refs/', '')
 
-  const populateReconc = exec(`BASEURL=/${webhook.repository}/${ref} ${repositoryURL} CI=true node src/populateReconciliation.js`, {encoding: "UTF-8"})
+  const populateReconc = execSync(`BASEURL=/${webhook.repository}/${ref} ${repositoryURL} CI=true node src/populateReconciliation.js`, {encoding: "UTF-8"})
 
   populateReconc.child.stdout.on('data', (data) => {
     console.log('reconcLog: ' + data.toString())
@@ -209,7 +209,7 @@ async function build(repositoryURL, webhook) {
   console.log('Running gatsby build...')
   const ref = webhook.ref.replace('refs/', '')
 
-  const build = exec(`BASEURL=/${webhook.repository}/${ref} ${repositoryURL} CI=true npm run build`, {encoding: "UTF-8"})
+  const build = execSync(`BASEURL=/${webhook.repository}/${ref} ${repositoryURL} CI=true npm run build`, {encoding: "UTF-8"})
 
   build.child.stdout.on('data', (data) => {
     console.log('gatsbyLog: ' + data.toString())
