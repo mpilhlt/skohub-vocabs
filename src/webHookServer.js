@@ -5,7 +5,6 @@ const bodyParser = require('koa-bodyparser')
 const { v4: uuidv4 } = require("uuid")
 const fs = require('fs-extra')
 const glob = require('glob')
-const util = require('util')
 const exec = require('child_process').exec
 const spawn = require('child_process').spawn
 const fetch = require("node-fetch")
@@ -17,8 +16,8 @@ const {
   isValid,
   getRepositoryFiles,
 } = require('./common')
-const { resolve } = require('path')
-const { reject } = require('lodash')
+// const { resolve } = require('path')
+// const { reject } = require('lodash')
 
 require('dotenv').config()
 require('colors')
@@ -139,9 +138,9 @@ const processWebhooks = async () => {
       // Define repositoryURL
       let repositoryURL = ''
       if (webhook.type === 'github') {
-        repositoryURL = `GATSBY_RESPOSITORY_URL=https://github.com/${webhook.repository}`
+        repositoryURL = `GATSBY_REPOSITORY_URL=https://github.com/${webhook.repository}`
       } else if (webhook.type === 'gitlab') {
-        repositoryURL = `GATSBY_RESPOSITORY_URL=https://gitlab.com/${webhook.repository}`
+        repositoryURL = `GATSBY_REPOSITORY_URL=https://gitlab.com/${webhook.repository}`
       }
 
       const files = glob.sync('data/**/*.ttl')
@@ -149,19 +148,19 @@ const processWebhooks = async () => {
         const ref = webhook.ref.replace('refs/', '')
         const buildCmd = {
           env: {
-            BASEURL: `/${webhook.repository}/${ref}/${repositoryURL}`,
+            BASEURL: `/${webhook.repository}/${ref}/`,
              CI: 'true'
           },
           cmd: 'npm',
-          paras: ['run', 'build']
+          args: ['run', 'build']
         }
         const reconcCmd = {
           env: {
-            BASEURL: `/${webhook.repository}/${ref}/${repositoryURL}`,
+            BASEURL: `/${webhook.repository}/${ref}/`,
              CI: 'true'
           },
           cmd: 'node',
-          paras: ['src/populateReconciliation.js']
+          args: ['src/populateReconciliation.js']
         }
 
         // Call the processing function(s)
@@ -185,9 +184,9 @@ const processWebhooks = async () => {
 
 async function runBuild(webhook, command, processName) {
   console.log(`Running ${processName} build ...`)
-
+  Object.keys(command.env).forEach( key => {process.env[key] = command.env[key]})
   return new Promise(async (resolve, reject) => {
-    const process = spawn(command.cmd, command.paras, { env: command.env });
+    const process = spawn(command.cmd, command.args, { env: command.env });
     process.on('data', (data) => {
       console.log(`${processName}Log: ` + data.toString())
       webhook.log.push({
@@ -195,7 +194,6 @@ async function runBuild(webhook, command, processName) {
         text: data.toString()
       })
       fs.writeFile(`${__dirname}/../dist/build/${webhook.id}.json`, JSON.stringify(webhook))
-      resolve(data)
     });
     process.on('error', (err) => {
       console.log(`${processName}Error: ` + err.toString())
