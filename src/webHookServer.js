@@ -5,7 +5,6 @@ const bodyParser = require('koa-bodyparser')
 const { v4: uuidv4 } = require("uuid")
 const fs = require('fs-extra')
 const glob = require('glob')
-const exec = require('child_process').exec
 const spawn = require('child_process').spawn
 const fetch = require("node-fetch")
 
