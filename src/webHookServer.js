@@ -186,7 +186,7 @@ async function runBuild(webhook, command, processName) {
   console.log(`Running ${processName} build ...`)
   Object.keys(command.env).forEach( key => {process.env[key] = command.env[key]})
   return new Promise(async (resolve, reject) => {
-    const process = spawn(command.cmd, command.args, { env: command.env });
+    const process = spawn(command.cmd, command.args);
     process.stdout.on('data', (data) => {
       console.log(`${processName}Log: ` + data.toString())
       webhook.log.push({
