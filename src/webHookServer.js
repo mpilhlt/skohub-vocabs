@@ -170,10 +170,12 @@ const processWebhooks = async () => {
           // A promise that either is resolved by the async reconcile function or - if !doReconcile - immediately
           ( doReconcile ? runBuild(webhook, reconcCmd, 'reconcile') : Promise.resolve() )
         ])
+        .then(
+          cleanUp(webhook) // ... then clean up downloaded and temporary files.
+        )
         .catch(error => {
           console.error(`Error during build or populate-reconc step. Abort!`, error)
         })
-        cleanUp(webhook) // ... then clean up downloaded and temporary files.
       } else {
         console.warn("No files to process found in filesystem. Finishing...")
         cleanUp(webhook)
