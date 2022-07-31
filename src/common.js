@@ -11,7 +11,7 @@ const getFilePath = (url, extension) => {
 }
 
 const getFileName = (url) => {
-  url.replace(/^https?:\//, "").split('/').pop().split('#').shift()
+  return url.replace(/^https?:\//, "").split('/').pop().split('#').shift()
 }
 
 const getPath = url => url.replace(/^https?:\/\//, "")
