@@ -170,18 +170,18 @@ const processWebhooks = async () => {
           // A promise that either is resolved by the async reconcile function or - if !doReconcile - immediately
           ( doReconcile ? runBuild(webhook, reconcCmd, 'reconcile') : Promise.resolve() )
         ])
+        .then(_ => {
+          cleanUp(webhook) // ... then clean up downloaded and temporary files.
+          console.log('All processing done.')
+        })
         .catch(error => {
           console.error(`Error during build or populate-reconc step. Abort!`, error.toString)
+          console.log('All processing done.')
         })
-        // FIXME: We have a 'warning ./node_modules/asn1.js/lib/asn1/api.js':
-        // Module not found: Can't resolve 'vm' in '/var/data/skohub-vocabs/node_modules/asn1.js/lib/asn1'
-        // (This seems to be related to a crypto module used by checksuming functions.)
-        // Problem is, this triggers the error catcher that after its logging proceeds to the cleanUp function (too early!)
-        // Thus, for the time being, the cleanUp function is not used.
-        cleanUp(webhook) // ... then clean up downloaded and temporary files.
       } else {
         console.warn("No files to process found in filesystem. Finishing...")
         cleanUp(webhook)
+        console.log('All processing done.')
       }
     }
   }
@@ -266,6 +266,7 @@ function cleanUp(webhook) {
   }
 
   processingWebhooks = false
+  console.log('Cleaning up finished.')
 }
 
 app
