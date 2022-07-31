@@ -214,8 +214,8 @@ async function runBuild(webhook, command, processName) {
         })
         webhook.status = "error"
         fs.writeFile(`${__dirname}/../dist/build/${webhook.id}.json`, JSON.stringify(webhook))
+        reject(err)
       }
-      reject(err)
     });
     process.on('close', async (code) => {
       if ((code !== 0)) {
