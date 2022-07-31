@@ -147,13 +147,29 @@ const processWebhooks = async () => {
       const files = glob.sync('data/**/*.ttl')
       if (files) {
         const ref = webhook.ref.replace('refs/', '')
+        const buildCmd = {
+          env: {
+            BASEURL: `/${webhook.repository}/${ref}/${repositoryURL}`,
+             CI: 'true'
+          },
+          cmd: 'npm',
+          paras: ['run', 'build']
+        }
+        const reconcCmd = {
+          env: {
+            BASEURL: `/${webhook.repository}/${ref}/${repositoryURL}`,
+             CI: 'true'
+          },
+          cmd: 'node',
+          paras: ['src/populateReconciliation.js']
+        }
 
         // Call the processing function(s)
         // When all the processing functions are resolved...
         await Promise.all([
-          runBuild(repositoryURL, webhook, `BASEURL=/${webhook.repository}/${ref} ${repositoryURL} CI=true npm run build`, 'gatsby'),
+          runBuild(webhook, buildCmd, 'gatsby'),
           // A promise that either is resolved by the async reconcile function or - if !doReconcile - immediately
-          ( doReconcile ? runBuild(repositoryURL, webhook, `BASEURL=/${webhook.repository}/${ref} ${repositoryURL} CI=true node src/populateReconciliation.js`, 'reconcile') : Promise.resolve() )
+          ( doReconcile ? runBuild(webhook, reconcCmd, 'reconcile') : Promise.resolve() )
         ])
         .catch(error => {
           console.error(`Error during build or populate-reconc step. Abort!`, error)
@@ -167,11 +183,11 @@ const processWebhooks = async () => {
   }
 }
 
-async function runBuild(repositoryURL, webhook, command, processName) {
+async function runBuild(webhook, command, processName) {
   console.log(`Running ${processName} build ...`)
 
   return new Promise(async (resolve, reject) => {
-    const process = spawn(command);
+    const process = spawn(command.cmd, command.paras, { env: command.env });
     process.on('data', (data) => {
       console.log(`${processName}Log: ` + data.toString())
       webhook.log.push({
