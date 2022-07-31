@@ -10,6 +10,10 @@ const getFilePath = (url, extension) => {
   return extension ? `${path}.${extension}` : path
 }
 
+const getFileName = (url) => {
+  url.split('/').pop().split('#').shift()
+}
+
 const getPath = url => url.replace(/^https?:\/\//, "")
 
 const getFragment = url => new URL(url).hash
@@ -152,6 +156,7 @@ module.exports = {
   i18n,
   getPath,
   getFilePath,
+  getFileName,
   getFragment,
   getDomId,
   getHeaders,

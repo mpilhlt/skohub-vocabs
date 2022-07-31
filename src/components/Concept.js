@@ -4,7 +4,7 @@ import Markdown from 'markdown-to-jsx'
 import { Link } from 'gatsby'
 import JsonLink from './JsonLink'
 
-import { i18n, getDomId, getFilePath } from '../common'
+import { i18n, getDomId, getFilePath, getFileName } from '../common'
 
 const Concept = ({ pageContext: { node: concept, language, baseURL } }) => (
   <div className="content block" id={getDomId(concept.id)}>
@@ -16,7 +16,7 @@ const Concept = ({ pageContext: { node: concept, language, baseURL } }) => (
     </h1>
     <h2>{concept.id}</h2>
     <JsonLink
-      to={baseURL + getFilePath(concept.id, "json")}
+      to={`${getFileName(concept.id)}.json`}
     />
     <p>
       <a href={concept.inbox}>Inbox</a>
@@ -50,7 +50,8 @@ const Concept = ({ pageContext: { node: concept, language, baseURL } }) => (
           </Markdown>
         </div>
     )}
-    {concept.altLabel && i18n(language)(concept.altLabel) !== '' && (
+    {concept.altLabel && i18n(language)(concept.altLabel) !== ''
+      && (
       <div>
         <h3>Alt Label</h3>
           <ul>
@@ -59,8 +60,10 @@ const Concept = ({ pageContext: { node: concept, language, baseURL } }) => (
             ))}
           </ul>
       </div>
-    )}
-    {concept.example && (
+      )
+    }
+    {concept.example
+      && (
         <div className="markdown">
           <h3>Example</h3>
           <Markdown>
@@ -69,7 +72,8 @@ const Concept = ({ pageContext: { node: concept, language, baseURL } }) => (
         </div>
       )
     }
-    {concept.related && concept.related.length > 0 && (
+    {concept.related && concept.related.length > 0
+      && (
       <div>
         <h3>Related</h3>
         <ul>
@@ -82,8 +86,10 @@ const Concept = ({ pageContext: { node: concept, language, baseURL } }) => (
           ))}
         </ul>
       </div>
-    )}
-    {concept.narrowMatch && concept.narrowMatch.length > 0 && (
+      )
+    }
+    {concept.narrowMatch && concept.narrowMatch.length > 0
+      && (
       <div>
         <h3>Narrow Match</h3>
         <ul>
@@ -94,8 +100,10 @@ const Concept = ({ pageContext: { node: concept, language, baseURL } }) => (
           ))}
         </ul>
       </div>
-    )}
-    {concept.broadMatch && concept.broadMatch.length > 0 && (
+      )
+    }
+    {concept.broadMatch && concept.broadMatch.length > 0
+      && (
       <div>
         <h3>Broad Match</h3>
         <ul>
@@ -106,8 +114,10 @@ const Concept = ({ pageContext: { node: concept, language, baseURL } }) => (
           ))}
         </ul>
       </div>
-    )}
-    {concept.exactMatch && concept.exactMatch.length > 0 && (
+      )
+    }
+    {concept.exactMatch && concept.exactMatch.length > 0
+      && (
       <div>
         <h3>Exact Match</h3>
         <ul>
@@ -118,8 +128,10 @@ const Concept = ({ pageContext: { node: concept, language, baseURL } }) => (
           ))}
         </ul>
       </div>
-    )}
-    {concept.closeMatch && concept.closeMatch.length > 0 && (
+      )
+    }
+    {concept.closeMatch && concept.closeMatch.length > 0
+      && (
       <div>
         <h3>Close Match</h3>
         <ul>
@@ -130,8 +142,10 @@ const Concept = ({ pageContext: { node: concept, language, baseURL } }) => (
           ))}
         </ul>
       </div>
-    )}
-    {concept.relatedMatch && concept.relatedMatch.length > 0 && (
+      )
+    }
+    {concept.relatedMatch && concept.relatedMatch.length > 0
+      && (
       <div>
         <h3>Related Match</h3>
         <ul>
@@ -142,7 +156,8 @@ const Concept = ({ pageContext: { node: concept, language, baseURL } }) => (
           ))}
         </ul>
       </div>
-    )}
+      )
+    }
   </div>
 )
 

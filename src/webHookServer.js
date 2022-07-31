@@ -21,7 +21,7 @@ const {
 require('dotenv').config()
 require('colors')
 
-const { PORT, SECRET, BUILD_URL } = process.env
+const { PORT, SECRET, BUILD_URL, BASEURL } = process.env
 const app = new Koa()
 const router = new Router()
 
@@ -138,9 +138,9 @@ const processWebhooks = async () => {
       // FIXME: Waht did we need this for?
       let repositoryURL = ''
       if (webhook.type === 'github') {
-        repositoryURL = `GATSBY_REPOSITORY_URL=https://github.com/${webhook.repository}`
+        repositoryURL = `https://github.com/${webhook.repository}`
       } else if (webhook.type === 'gitlab') {
-        repositoryURL = `GATSBY_REPOSITORY_URL=https://gitlab.com/${webhook.repository}`
+        repositoryURL = `https://gitlab.com/${webhook.repository}`
       }
 
       const files = glob.sync('data/**/*.ttl')
@@ -148,16 +148,18 @@ const processWebhooks = async () => {
         const ref = webhook.ref.replace('refs/', '')
         const buildCmd = {
           env: {
-            BASEURL: `/${webhook.repository}/${ref}/`,
-             CI: 'true'
+            BASEURL: `${BASEURL}/${webhook.repository}/${ref}/`,
+            GATSBY_REPOSITORY: repositoryURL,
+            CI: 'true'
           },
           cmd: 'npm',
           args: ['run', 'build']
         }
         const reconcCmd = {
           env: {
-            BASEURL: `/${webhook.repository}/${ref}/`,
-             CI: 'true'
+            BASEURL: `${BASEURL}/${webhook.repository}/${ref}/`,
+            GATSBY_REPOSITORY: repositoryURL,
+            CI: 'true'
           },
           cmd: 'node',
           args: ['src/populateReconciliation.js']

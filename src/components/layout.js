@@ -139,14 +139,14 @@ const Layout = ({ children, languages, language }) => (
         />
         <main>{children}</main>
 
-        {process.env.GATSBY_RESPOSITORY_URL && (
+        {process.env.GATSBY_REPOSITORY_URL && (
           <a
-            href={process.env.GATSBY_RESPOSITORY_URL}
+            href={process.env.GATSBY_REPOSITORY_URL}
             className="forkMe"
             target="_blank"
             rel="noopener noreferrer"
           >
-            Fork this vocab on {process.env.GATSBY_RESPOSITORY_URL.includes('github') ? 'GitHub' : 'GitLab'}
+            Fork this vocab on {process.env.GATSBY_REPOSITORY_URL.includes('github') ? 'GitHub' : 'GitLab'}
           </a>
         )}
 
