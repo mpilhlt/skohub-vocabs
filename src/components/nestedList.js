@@ -1,6 +1,6 @@
 /** @jsx jsx */
 import { css, jsx } from '@emotion/react'
-import { i18n, getFilePath, getFragment } from '../common'
+import { i18n, getFileName, getFragment } from '../common'
 import { Link } from "gatsby"
 
 import { colors as c } from '../styles/variables'
@@ -144,7 +144,7 @@ const NestedList = ({ items, current, filter, highlight, language }) => {
             ) : (
               <Link
                 className={item.id === current ? 'current' : ''}
-                to={getFilePath(item.id, `${language}.html`)}
+                to={'./' + getFileName(item.id) + '.' + language + '.html'}
               >
                 {item.notation &&
                   <span className="notation">{item.notation.join(',')}&nbsp;</span>
