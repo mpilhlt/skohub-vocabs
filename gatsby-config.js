@@ -6,6 +6,8 @@ module.exports = {
     description: `Static site generator for Simple Knowledge Management Systems (SKOS)`,
     author: `@gatsbyjs`,
   },
+  // assetPrefix: '__GATSBY_RELATIVE_PATH__',
+  // pathPrefix: '.',
   pathPrefix: `${process.env.BASEURL || ''}`,
   plugins: [
     `gatsby-plugin-emotion`,
@@ -18,6 +20,8 @@ module.exports = {
     },
     `gatsby-transformer-sharp`,
     `gatsby-plugin-sharp`,
+    // `gatsby-plugin-relative-paths`,
+    // `@wardpeet/gatsby-plugin-static-site`,
     {
       resolve: `gatsby-source-filesystem`,
       options: {

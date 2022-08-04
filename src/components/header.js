@@ -54,7 +54,7 @@ const Header = ({ siteTitle, languages, language, pathName = useLocation().pathn
   >
     <div className="headerContent">
       <h1>
-        <Link to={`./index.${language}.html`} >
+        <Link to={`/index.${language}.html`} >
           {siteTitle}
         </Link>
       </h1>
@@ -65,7 +65,7 @@ const Header = ({ siteTitle, languages, language, pathName = useLocation().pathn
               {l === language ? (
                 <span className="currentLanguage">{l}</span>
               ) : (
-                <a href={`./${pathName}.${l}.html`}>{l}</a>
+                <a href={`${pathName}.${l}.html`}>{l}</a>
               )}
             </li>
           ))}
