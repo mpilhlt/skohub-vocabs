@@ -1,6 +1,6 @@
 /** @jsx jsx */
 import { css, jsx } from '@emotion/react'
-import { i18n, getFileName, getFragment } from '../common'
+import { i18n, getFileName, getFilePath, getFragment } from '../common'
 import { Link } from "gatsby"
 
 import { colors as c } from '../styles/variables'
@@ -111,19 +111,19 @@ const NestedList = ({ items, current, filter, highlight, language }) => {
   return (
     <ul css={style}>
       {(filteredItems || []).map(item => (
-        <li
-          key={item.id}
-        >
-          {(item.narrower && item.narrower.length > 0) && (
-            <button
-              className={`treeItemIcon inputStyle${(filter || getNestedItems(item).some( id => id === current))
-                ?  '' : ' collapsed'}`}
-              onClick={(e) => {
-                e.target.classList.toggle("collapsed")
-              }}
-            >
-            </button>
-          )}
+        <li key={item.id}>
+          {(item.narrower && item.narrower.length > 0)
+             && (
+              <button
+                className={`treeItemIcon inputStyle${(filter || getNestedItems(item).some( id => id === current))
+                  ?  '' : ' collapsed'}`}
+                onClick={(e) => {
+                  e.target.classList.toggle("collapsed")
+                }}
+              >
+              </button>
+            )
+          }
           <div>
             {getFragment(item.id) ? (
               <a
@@ -144,7 +144,7 @@ const NestedList = ({ items, current, filter, highlight, language }) => {
             ) : (
               <Link
                 className={item.id === current ? 'current' : ''}
-                to={'./' + getFileName(item.id) + '.' + language + '.html'}
+                to={getFilePath(item.id, `${language}.html`)}
               >
                 {item.notation &&
                   <span className="notation">{item.notation.join(',')}&nbsp;</span>

@@ -3,7 +3,7 @@ import { jsx } from '@emotion/react'
 import Markdown from 'markdown-to-jsx'
 
 import Concept from './Concept'
-import { i18n, getDomId, getFilePath, getFileName } from '../common'
+import { i18n, getDomId, getFileName } from '../common'
 import JsonLink from './JsonLink'
 
 const ConceptScheme = ({
@@ -17,10 +17,9 @@ const ConceptScheme = ({
     <div>
       <h1>{i18n(language)(conceptScheme.title)}</h1>
       <h2>{conceptScheme.id}</h2>
-      <JsonLink
-        to={getFileName(conceptScheme.id) + '.json'}
-      />
-      {conceptScheme.description && (
+      <JsonLink to={getFileName(conceptScheme.id) + '.json'} />
+      {conceptScheme.description
+        && (
           <div className="markdown">
             <Markdown>
               {i18n(language)(conceptScheme.description)}

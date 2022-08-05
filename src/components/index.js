@@ -1,6 +1,6 @@
 import React from "react"
 import { Link } from "gatsby"
-import { i18n, getFilePath, getFileName } from '../common'
+import { i18n, getFilePath } from '../common'
 
 import Layout from "./layout"
 import SEO from "./seo"

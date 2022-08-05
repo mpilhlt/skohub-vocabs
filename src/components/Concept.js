@@ -4,7 +4,7 @@ import Markdown from 'markdown-to-jsx'
 import { Link } from 'gatsby'
 import JsonLink from './JsonLink'
 
-import { i18n, getDomId, getFilePath, getFileName } from '../common'
+import { i18n, getDomId, getFileName, getFilePath } from '../common'
 
 const Concept = ({ pageContext: { node: concept, language, baseURL } }) => (
   <div className="content block" id={getDomId(concept.id)}>
@@ -15,9 +15,7 @@ const Concept = ({ pageContext: { node: concept, language, baseURL } }) => (
       {i18n(language)(concept.prefLabel)}
     </h1>
     <h2>{concept.id}</h2>
-    <JsonLink
-        to={'./' + getFileName(concept.id) + '.json'}
-        />
+    <JsonLink to={getFileName(concept.id) + '.json'} />
     <p>
       <a href={concept.inbox}>Inbox</a>
     </p>
@@ -95,7 +93,12 @@ const Concept = ({ pageContext: { node: concept, language, baseURL } }) => (
         <ul>
           {concept.narrowMatch.map((narrowMatch) => (
             <li key={narrowMatch.id}>
-              <a href={narrowMatch.id}>{narrowMatch.id}</a>
+              {/* TODO: Try this with a getFileName() approach
+                  <a href={narrowMatch.id}>{narrowMatch.id}</a>
+              */}
+              <Link to={getFilePath(narrowMatch.id, `${language}.html`)}>
+                {i18n(language)(narrowMatch.prefLabel)}
+              </Link>
             </li>
           ))}
         </ul>
@@ -109,7 +112,9 @@ const Concept = ({ pageContext: { node: concept, language, baseURL } }) => (
         <ul>
           {concept.broadMatch.map((broadMatch) => (
             <li key={broadMatch.id}>
-              <a href={broadMatch.id}>{broadMatch.id}</a>
+              <Link to={getFilePath(broadMatch.id, `${language}.html`)}>
+                {i18n(language)(broadMatch.prefLabel)}
+              </Link>
             </li>
           ))}
         </ul>
@@ -123,7 +128,9 @@ const Concept = ({ pageContext: { node: concept, language, baseURL } }) => (
         <ul>
           {concept.exactMatch.map((exactMatch) => (
             <li key={exactMatch.id}>
-              <a href={exactMatch.id}>{exactMatch.id}</a>
+              <Link to={getFilePath(exactMatch.id, `${language}.html`)}>
+                {i18n(language)(exactMatch.prefLabel)}
+              </Link>
             </li>
           ))}
         </ul>
@@ -137,7 +144,9 @@ const Concept = ({ pageContext: { node: concept, language, baseURL } }) => (
         <ul>
           {concept.closeMatch.map((closeMatch) => (
             <li key={closeMatch.id}>
-              <a href={closeMatch.id}>{closeMatch.id}</a>
+              <Link to={getFilePath(closeMatch.id, `${language}.html`)}>
+                {i18n(language)(closeMatch.prefLabel)}
+              </Link>
             </li>
           ))}
         </ul>
@@ -151,7 +160,9 @@ const Concept = ({ pageContext: { node: concept, language, baseURL } }) => (
         <ul>
           {concept.relatedMatch.map((relatedMatch) => (
             <li key={relatedMatch.id}>
-              <a href={relatedMatch.id}>{relatedMatch.id}</a>
+              <Link to={getFilePath(relatedMatch.id, `${language}.html`)}>
+                {i18n(language)(relatedMatch.prefLabel)}
+              </Link>
             </li>
           ))}
         </ul>

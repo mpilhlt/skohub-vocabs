@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 
 import FlexSearch from 'flexsearch'
 import escapeRegExp from 'lodash.escaperegexp'
-import { i18n, getFileName } from '../common'
+import { i18n, getFilePath, getFileName } from '../common'
 import NestedList from '../components/nestedList'
 import TreeControls from '../components/TreeControls'
 import Layout from '../components/layout'
@@ -22,7 +22,7 @@ const App = ({pageContext, children}) => {
 
   // Fetch and load the serialized index
   useEffect(() => {
-    fetch('./' + getFileName(conceptSchemeId) + '.' + pageContext.language + '.index')
+    fetch(getFileName(conceptSchemeId) + '.' + pageContext.language + '.index')
       .then(response => response.json())
       .then(serialized => {
         const idx = FlexSearch.create()
@@ -35,7 +35,7 @@ const App = ({pageContext, children}) => {
   // Fetch and load the tree
   useEffect(() => {
     pageContext.node.type !== 'ConceptScheme'
-      && fetch('./' + getFileName(conceptSchemeId) + '.json')
+      && fetch(getFileName(conceptSchemeId) + '.json')
         .then(response => response.json())
         .then(tree => setTree(tree))
   }, [])
