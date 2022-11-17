@@ -23,11 +23,11 @@ async function collectData () {
 		}
 		const ttlString = fs.readFileSync(f).toString()
 		const j = await buildJSON(ttlString, account)
-		if (!/[a-zA-Z0-9]/.test(j.vocab.slice(0,1))) {
-			console.log(`> Invalid data: vocab must start with a letter or a number. Instead, its value is: ${j.vocab}`)
+		if (!/[a-zA-Z0-9]/.test(j.dataset.slice(0,1))) {
+			console.log(`> Invalid data: dataset must start with a letter or a number. Instead, its value is: ${j.dataset}`)
 			continue
 		}
-		data.push({ account: j.account, vocab: j.vocab, entries: j.entries })
+		data.push({ account: j.account, dataset: j.dataset, entries: j.entries })
 	}
 	return data
 };
@@ -38,7 +38,7 @@ async function buildJSON (ttlString, account) {
 	const compacted = await jsonld.compact(expanded, context.jsonld)
 
 	var entries = ''
-	var vocab = ''
+	var dataset = ''
 
 	compacted['@graph'].forEach((graph, _) => {
 		const { ...properties } = graph
@@ -50,18 +50,18 @@ async function buildJSON (ttlString, account) {
 			type
 		}
 		if (node.type === 'ConceptScheme') {
-			vocab = node.id.substring(0, node.id.lastIndexOf('/'))
+			dataset = node.id.substring(0, node.id.lastIndexOf('/'))
 		} else if (node.type === 'Concept') {
-			vocab = node.inScheme[0].id.substring(0, node.inScheme[0].id.lastIndexOf('/'))
+			dataset = node.inScheme[0].id.substring(0, node.inScheme[0].id.lastIndexOf('/'))
 		}
-		node['vocab'] = vocab
+		node['dataset'] = dataset
 		node['account'] = account
 		node['@context'] = context.jsonld['@context']
 
 		entries = `${entries}{ "index" : { "_index" : "${esIndex}" } }\n`
 		entries = entries + JSON.stringify(node) + '\n'
 	})
-	return { account: account, vocab: vocab, entries: entries }
+	return { account: account, dataset: dataset, entries: entries }
 };
 
 var esClient
@@ -71,10 +71,10 @@ if (process.env.ES_USER && process.env.ES_PASS) {
 	esClient = new elasticsearch.Client({ node: `${process.env.ES_PROTO}://${process.env.ES_HOST}:${process.env.ES_PORT}` })
 }
 
-async function deleteData (account, vocab) {
+async function deleteData (account, dataset) {
 	const requestBody = esb.requestBodySearch()
 		.query(esb.boolQuery()
-			.must([ ...(vocab && [esb.termQuery('vocab', vocab)]),
+			.must([ ...(dataset && [esb.termQuery('dataset', dataset)]),
 					...(account && [esb.termQuery('account', account)])
 				])
 		)
@@ -95,28 +95,28 @@ async function sendData (entries) {
 async function main() {
 	const data = await collectData()
 	data.forEach(async v => {
-		await deleteData(v.account, v.vocab)
+		await deleteData(v.account, v.dataset)
 		.then(response => {
 			if (response.statusCode !== 200) {
-				console.log(`> Warning: Delete ${v.account}/${v.vocab} status != 200. Better check response:\n`, response)
+				console.log(`> Warning: Delete ${v.account}/${v.dataset} status != 200. Better check response:\n`, response)
 			} else {
-				console.log(`> ${v.account}/${v.vocab}: Successfully deleted ${response.body.deleted} documents from ES index.`)
+				console.log(`> ${v.account}/${v.dataset}: Successfully deleted ${response.body.deleted} documents from ES index.`)
 			}
 		})
 		.catch(error => {
-			console.error(`Failed populating ${esIndex} index of ES server when trying to delete ${v.account}/${v.vocab}. Abort!`, error)
+			console.error(`Failed populating ${esIndex} index of ES server when trying to delete ${v.account}/${v.dataset}. Abort!`, error)
 		})
 
 		await sendData(v.entries)
 		.then(response => {
 			if (response.statusCode !== 200) {
-				console.log(`> Warning: SendData ${v.account}/${v.vocab} status != 200. Better check response:\n`, response)
+				console.log(`> Warning: SendData ${v.account}/${v.dataset} status != 200. Better check response:\n`, response)
 			} else {
-				console.log(`> ${v.account}/${v.vocab}: Successfully sent ${response.body.items.length} documents to ES index.`)
+				console.log(`> ${v.account}/${v.dataset}: Successfully sent ${response.body.items.length} documents to ES index.`)
 			}
 		})
 		.catch(error => {
-			console.error(`Failed populating ${esIndex} index of ES server with ${v.account}/${v.vocab}. Abort!`, error)
+			console.error(`Failed populating ${esIndex} index of ES server with ${v.account}/${v.dataset}. Abort!`, error)
 		})
 	})
 }
